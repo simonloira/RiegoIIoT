@@ -38,19 +38,25 @@ class GetDate():
                     - **days** (float): Días restantes del año actual en formato decimal.
                     - **is_leap** (bool): Indica si el año actual es bisiesto.
         """
-        is_leap:bool = False
-        days = seconds/(3600*24)
-        count_year = 0
-        
-        while days >= 365:
-            is_leap = self.is_leap(count_year + 1970)
-            if is_leap:
-                days -= 366
-            else:
-                days -= 365
-            count_year += 1
+        days_400_y = (400*365) + 100 - 3
+        days_1970_now = seconds / 86400
 
-        return count_year, days, is_leap
+        blocks = days_1970_now // days_400_y #Bloques de 400 años
+        remaining_days = days_1970_now % days_400_y #Días restantes para alcanzar 400 años
+
+        days_secule = (100*365) + 25 - 1
+        secules = remaining_days // days_secule
+        remaining_days = remaining_days % days_secule
+
+        quad_days = (365 * 4) + 1
+        quaddreniums = remaining_days // quad_days
+        remaining_days = remaining_days % quad_days
+
+        year = int((remaining_days // 365) + (quaddreniums * 4) + (secules * 100) + (blocks * 400))
+        remaining_days = remaining_days % 365
+
+        return year, remaining_days, self.is_leap(year)
+
     
 
     def __get_month(self,
@@ -98,6 +104,7 @@ class GetDate():
         #### Returns:
                 str: Hora formateada en hh:mm:ss
         """
+       
         total_seconds = remaining_day * 86400
         hour, minutes, seconds = seconds_to_hour(total_seconds=total_seconds)
 
@@ -159,6 +166,7 @@ class GetDate():
         """
         seconds = seconds + (3600 * utc_time)
         year, days, is_leap = self.__get_year(seconds)
+    
         month_name, days,  month_idx= self.__get_month(remaining_days=days, is_leap=is_leap)
         day = int(days) + 1
 
@@ -168,6 +176,4 @@ class GetDate():
                     self.__delta_days(day, month_idx, year, days_offset), 
                     self.__get_hour_mins_secs(remaining_day= days % 1)
                 )
-
-
-    
+       
