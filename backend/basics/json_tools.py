@@ -3,13 +3,13 @@ from json import load, dumps
 
 from typing import Any
 
-def load_json_file(json_path:str) -> Any:
+def load_json_file(json_path:str) -> dict[str, Any]:
     if path.exists(json_path):
         try:
             
             with open(json_path, "r", encoding="UTF-8") as f:
-                content = load(f)
-                # print(f"Contenido json ({route_append}): {content}\n\n")
+                content:dict[str,Any] = load(f)
+
                 return content
         
         except Exception as e:
