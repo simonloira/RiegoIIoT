@@ -36,7 +36,7 @@ class APIState:
         print(f"Puede reintentar? {self.next_retry_time > 0 and time() > self.next_retry_time }")
         return self.next_retry_time > 0 and time() > self.next_retry_time 
     
-    def can_call_or_retry(self, cache_ttl: int):
+    def can_call_or_retry(self, cache_ttl: int) -> bool:
         return self.__can_fetch(cache_ttl) or self.__can_retry()
 
 
