@@ -6,40 +6,23 @@ from requests import get, exceptions
 from time import time, sleep
 from typing import Dict, List, Tuple, Optional, Any
 
-from backend.basics.time_server import get_date, UTC_SPAIN
-from backend.basics.json_tools import load_json_file, save_json_file
-from server.settings import settings as server_settings
-
-
-@dataclass
-class APIState:
-    """Estado de las llamadas a la API"""
-    last_fetch_time: float = 0
-    next_retry_time: float = 0
-
-    def __can_fetch(self, cache_ttl: int) -> bool:
-        """Verificar si se puede hacer una nueva petición"""
-        print(cache_ttl, self.last_fetch_time)
-        print(f"Puede llamar? {(time() - self.last_fetch_time) > cache_ttl}")
-        return (time() - self.last_fetch_time) > cache_ttl
-    
-    def __can_retry(self) -> bool:
-        """Verificar si se puede reintentar"""
-        print(f"Puede reintentar? {self.next_retry_time > 0 and time() > self.next_retry_time }")
-        return self.next_retry_time > 0 and time() > self.next_retry_time 
-    
-    def can_call_or_retry(self, cache_ttl: int):
-        return self.__can_fetch(cache_ttl) or self.__can_retry()
-
+from datetime import datetime, timedelta
 
 class GetMeteogaliciaData():
     def __init__(self):
         self.idstation = self.__read_ids_stations(f"{server_settings.MAIN_CLIMATE_PATH}/datos_clima/meteogalicia/IDStation.json")
-        self.utc_offset = UTC_SPAIN # Corrección de hora. De meteogalicia se recibe UTC-(1 o 2 si invierno o no), 
-                                    # mi clase (get_date()) hace la corrección a UTC0. Luego self.utc_offset hace 
-                                    # la correción a UTC_SPAIN.
-
-    def fetch_meteogalicia(self):
+        # Meteogalicia manda los datos con un desfase extraño, es como si internamente, el servidor de meteogalicia, 
+        # restase dos horas (o 1 dependiendo del horario) a UTC0 por lo que la única forma de que corresponda con la 
+        # hora local es con el offset manual. 
+        #
+        # El problema que le veo es que si meteogalicia corrige esto voy a tener que tocar otra vez el código para esto
+        # pero bueno, es lo que hay.
+        offset = datetime.now().astimezone().utcoffset()
+        if offset:
+            self.seconds_offset = offset.total_seconds()
+        else:
+            self.seconds_offset = 0 # Corrección de hora. De meteogalicia se recibe UTC-(1 o 2 si invierno o no), 
+                                    # Luego self.utc_offset hace la correción a UTC_SPAIN.
         try:
             # Se obtienen los datos climatológicos:
             filtered_data  = self.filter_raw_data() #->{"temperatura": [], "precipitación":[], "viento":[]..., "date":"{fecha actual=10 de Oct. de 2025, 21:47:21.}"}
@@ -50,54 +33,14 @@ class GetMeteogaliciaData():
             print(f"Error obteniendo la información de meteogalicia {e}")
             return ""
     
-    def filter_raw_data(self):
-        raw_data = self.__get_raw_data()
-        # Estructura de raw_data: Principales: ["BriefData", "lastData"]
-        # Dentro de "lastData" hay diferentes elementos con disitintas keys. 
-        # A mí sólo me interesa "name" ya que es el nombre de la magnitud medida (temperatura, viento, etc) y "lastData"
-        # Dentro del "lastData" correspondiente a la magnitud medida hay datos distintos  de esa magnitud (Por ejemplo: temperatura ambiente y punto de rocío)
-        # Cada "submagnitud" tiene los parámetros siguientes
-
-        params = ["title", "value", "unit"] #Parámetros que me interesan de la información que me manda meteogalicia
-
-        filtered_data = {}
-
-        for i in range(len(raw_data["lastData"])):
-            magnitude = raw_data["lastData"][i]["name"]
-            filtered_data[magnitude] = []
-            for j in range(len(raw_data["lastData"][i]["lastData"])):
-                for value in params:
-                    filtered_data[magnitude].append(raw_data["lastData"][i]["lastData"][j][value])
-        
-        if len(filtered_data) <= 3:
-            return 
-
-        #Se añade este campo para evitar errores en el renderizado en el html ya que da un error de jinja templates en el caso de que no exista la 
-        #key de radiciaón solar. El problema es si hay otro parámetro que tiene la estación de cabo udra y otra estación no tiene ese parámetro,
-        #vuelve a romperse el código. 
-        #Es una solución temporal. Se mejorará en futuras iteraciones para hacerlo más robusto.
-        if ("Radiación Solar" not in filtered_data.keys()):
-            filtered_data["Radiación Solar"] = ["Radiación solar global", 0, "W/m2", "Horas de sol", 0,"h"]
-
-        #Asignación de los valores de los demás parámetros
-        filtered_data["date"] = get_date().get_current_date((raw_data["date"]/1000) + (3600 * self.utc_offset)) #Corrección a UTC_SPAIN
-        filtered_data["estación"] = raw_data["station"]
-        filtered_data["lluvia_acumulada"] = raw_data["accumulated_rain"]
-        
-        return filtered_data 
-
-    def __get_raw_data(self) -> Dict:
-        """ Esta función coge los datos crudos de meteogalicia, tal cual como llegan. Además también tiene que en cuenta que, a veces,
-            puede ser que alguna estación no envíe datos. Entonces, se llama a la estación siguiente más cercana para ver si tiene datos; 
-            si no tiene, coge los datos de la siguiente, y si ninguna tiene datos recientes (caso poco probable) se cogen los datos 
-            más actualizados.
-        """
-        def get_accumulated_rain(id_station:str):
+        ts = datetime.fromtimestamp(raw_data['date']/1000 + self.seconds_offset).strftime("%d/%m/%Y, %H:%M:%S") 
             print("Calculando lluvia acumulada del día")
             url_base = "https://apis-ext.xunta.gal/meteo2api/v1/api/graficas/datos/10minutal?idIntervalo=1&idGrafica=2&parametros=10001&"
-            
-            date = get_date().get_current_date(time(), hyphens_format=True, days_offset=1) #DD-MM-AA
-            url = url_base + f"idEstacion={id_station}&fechaInicio={date[0]}%2000:10&fechaFin={date[1]}%2000:00"
+            #Se obtiene la fecha de hoy y la fecha de mañana y se formatean a una estructura compatible con el link
+            #para conseguir un link válido y conseguir los valores desde las 00:10 de hoy y las 00:00 del día siguiente
+            now = datetime.now()
+            dates = [now.strftime('%d-%m-%Y'), (now + timedelta(days=1)).strftime('%d-%m-%Y')]
+            url = url_base + f"idEstacion={id_station}&fechaInicio={dates[0]}%2000:10&fechaFin={dates[1]}%2000:00"
 
             resp = get(url, headers=headers, timeout=5)
             data = resp.json().get("data", [])
