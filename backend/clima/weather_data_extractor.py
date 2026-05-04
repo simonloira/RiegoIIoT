@@ -1,16 +1,18 @@
 import xmltodict
-from dataclasses import dataclass, asdict
-from json import loads, dumps, dump, load
+import sqlite3
+from dataclasses import asdict
+from json import loads, dumps, dump 
 from os import path
 from requests import get, exceptions
 from time import time, sleep
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Any 
 
 from datetime import datetime, timedelta
 
 class GetMeteogaliciaData():
-    def __init__(self):
+    def __init__(self) -> None:
         self.idstation = self.__read_ids_stations(f"{server_settings.MAIN_CLIMATE_PATH}/datos_clima/meteogalicia/IDStation.json")
+        self.conn = sqlite3.connect(f"{server_settings.CLIMATE_DATA_PATH}/meteogalicia/meteogal.db")
         # Meteogalicia manda los datos con un desfase extraño, es como si internamente, el servidor de meteogalicia, 
         # restase dos horas (o 1 dependiendo del horario) a UTC0 por lo que la única forma de que corresponda con la 
         # hora local es con el offset manual. 
@@ -23,33 +25,96 @@ class GetMeteogaliciaData():
         else:
             self.seconds_offset = 0 # Corrección de hora. De meteogalicia se recibe UTC-(1 o 2 si invierno o no), 
                                     # Luego self.utc_offset hace la correción a UTC_SPAIN.
+    def get_data(self) -> tuple[MeteoGaliciaData | None, bool]:
+        data = self.__fetch_meteogalicia()
+        fetch_failed = self.__save_data(data)
+        return data if data is not None else self.get_last_saved(), fetch_failed
+    def get_last_saved(self) -> MeteoGaliciaData | None:
+        with self.conn as conn:
+            conn.row_factory = sqlite3.Row
+            cu = conn.cursor()
+            row = cu.execute('SELECT * FROM climate_data ORDER BY id DESC LIMIT 1').fetchone()
+        
+        if row is None:
+            return None
+    
+        return MeteoGaliciaData(**{k: row[k] for k in row.keys() if k != "id"})
+    def __save_data(self, data:MeteoGaliciaData|None) -> bool:
+        if data is None:
+            return True
+        
+        with self.conn as conn:     
+            cu = conn.cursor()
+            row = cu.execute('SELECT id FROM climate_data WHERE timestamp = ?', (data.timestamp,)).fetchone() 
+            if row:
+                return True
+            
+            d = asdict(data) 
+            cols = ", ".join(d.keys()) 
+            placeholders = ", ".join("?" * len(d))  
+            cu.execute(f'INSERT INTO climate_data ({cols}) VALUES ({placeholders})', list(d.values()))
+        
+        return False
+
+    def __fetch_meteogalicia(self) -> MeteoGaliciaData | None:
         try:
             # Se obtienen los datos climatológicos:
-            filtered_data  = self.filter_raw_data() #->{"temperatura": [], "precipitación":[], "viento":[]..., "date":"{fecha actual=10 de Oct. de 2025, 21:47:21.}"}
-            return [filtered_data] #Se devuelve una lista ya que se iteran los elementos que devuelve cada api. meteogalicia sólo devuelve uno
+            raw_data: dict[str,Any] = self.__get_raw_data()
+            filtered_data  = self.filter_raw_data(raw_data) #->{"temperatura": [], "precipitación":[], "viento":[]..., "date":"{fecha actual=10 de Oct. de 2025, 21:47:21.}"}
+            return filtered_data #Se devuelve una lista ya que se iteran los elementos que devuelve cada api. meteogalicia sólo devuelve uno
                                    # pero aemet devuelve 2 y se puede meter otra api que a lo mejor devuelva más.
         
         except Exception as e:
             print(f"Error obteniendo la información de meteogalicia {e}")
-            return ""
+            return None
     
+    def filter_raw_data(self, raw_data: dict[str, Any]) -> MeteoGaliciaData | None:
+        if raw_data == {}:
+            return None
+        
+        # Asignación de fecha y corrección a UTC_SPAIN 
         ts = datetime.fromtimestamp(raw_data['date']/1000 + self.seconds_offset).strftime("%d/%m/%Y, %H:%M:%S") 
+        accum_rain = self.__get_accumulated_rain(raw_data["id_estation"])
+
+        data = MeteoGaliciaData(timestamp=ts,
+                                station_id=raw_data['station'],
+                                accum_rain = accum_rain)
+        
+        for magnitude in raw_data['lastData']:
+            for param in magnitude['lastData']:
+                p_id = param.get("idParam")
+                f_id = param.get("idFunction")
+                val = param.get("value", 0.0)
+                
+                if val is None: val = 0.0 
+
+                attr = MAP_SIMPLE.get(p_id) or MAP_COMPLEX.get((p_id, f_id))
+                
+                if attr:
+                    setattr(data, attr, val)
+        return data 
+
+    def __get_accumulated_rain(self, id_station:str) -> float:
             print("Calculando lluvia acumulada del día")
             url_base = "https://apis-ext.xunta.gal/meteo2api/v1/api/graficas/datos/10minutal?idIntervalo=1&idGrafica=2&parametros=10001&"
+
             #Se obtiene la fecha de hoy y la fecha de mañana y se formatean a una estructura compatible con el link
             #para conseguir un link válido y conseguir los valores desde las 00:10 de hoy y las 00:00 del día siguiente
             now = datetime.now()
             dates = [now.strftime('%d-%m-%Y'), (now + timedelta(days=1)).strftime('%d-%m-%Y')]
             url = url_base + f"idEstacion={id_station}&fechaInicio={dates[0]}%2000:10&fechaFin={dates[1]}%2000:00"
 
-            resp = get(url, headers=headers, timeout=5)
+            resp = get(url, headers=self.headers, timeout=5)
             data = resp.json().get("data", [])
+
             accumulated = sum(float(item["value"]) for item in data if float(item["value"]) >= 0)
 
-            return ["Chuvia acumulada", round(accumulated,2), "L/m2"]
-       
-        
-        most_updated_data = {}
+            return round(accumulated,2)
+
+    def __get_raw_data(self) -> dict[str, str| int | list[dict[str, str | int | list[dict[str, str | int]]]]]:
+        #Pongo Any porque resp.json() devuelve Any, aunque la estructura
+        #del json es la que tengo escrita como retorno de la función
+        most_updated_data: dict[str, Any] = {} 
         most_recent_date = 0 #0 es muy antiguo sería 01-01-1970
         
         for station, id in self.idstation.items():
