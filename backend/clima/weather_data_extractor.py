@@ -170,15 +170,25 @@ class GetMeteogaliciaData():
                     float: Cantidad de lluvia acumulada en el día de hoy
             """
             print("Calculando lluvia acumulada del día")
-            url_base = "https://apis-ext.xunta.gal/meteo2api/v1/api/graficas/datos/10minutal?idIntervalo=1&idGrafica=2&parametros=10001&"
+
+            ENDPOINT = "https://apis-ext.xunta.gal/meteo2api/v1/api/graficas/datos/10minutal"
 
             #Se obtiene la fecha de hoy y la fecha de mañana y se formatean a una estructura compatible con el link
             #para conseguir un link válido y conseguir los valores desde las 00:10 de hoy y las 00:00 del día siguiente
             now = datetime.now()
-            dates = [now.strftime('%d-%m-%Y'), (now + timedelta(days=1)).strftime('%d-%m-%Y')]
-            url = url_base + f"idEstacion={id_station}&fechaInicio={dates[0]}%2000:10&fechaFin={dates[1]}%2000:00"
+            dates = [now.strftime('%d-%m-%Y'), (now + timedelta(days=1)
+                                                ).strftime('%d-%m-%Y')]
+            params:dict[str, int|str] = {
+                                            "idIntervalo": 1,
+                                            "idGrafica": 2,
+                                            "parametros": 10001,
+                                            "idEstacion": id_station,
+                                            "fechaInicio": f"{dates[0]} 00:10",
+                                            "fechaFin": f"{dates[1]} 00:00"
+                                        }
 
-            resp = get(url, headers=self.headers, timeout=5)
+            resp = get(ENDPOINT, timeout=5,
+                       headers=self.headers,  params=params)
             data = resp.json().get("data", [])
 
             accumulated = sum(float(item["value"]) for item in data if float(item["value"]) >= 0)
@@ -197,6 +207,7 @@ class GetMeteogaliciaData():
             Returns:
                 dict[str, str| int | list[dict[str, str | int | list[dict[str, str | int]]]]]: Información cruda de la API
         """
+        ENDPOINT = "https://apis-ext.xunta.gal/meteo2api/v1/api/estacion-meteorologica/ultimos-datos"
         #Pongo Any porque resp.json() devuelve Any, aunque la estructura
         #del json es la que tengo escrita como retorno de la función
         most_updated_data: dict[str, Any] = {} 
@@ -205,7 +216,8 @@ class GetMeteogaliciaData():
         for station, id in self.idstation.items():
             url = f"https://apis-ext.xunta.gal/meteo2api/v1/api/estacion-meteorologica/ultimos-datos?idEstacion={id}&idioma=gl"
             try:
-                resp = get(url, headers=self.headers, timeout=5)
+                resp = get(ENDPOINT, timeout=5,
+                           headers=self.headers, params=params,)
                 data = resp.json()
                 print(f"\nA ver si {station} tiene datos actualizados")
                 #Se divide entre mil porque vienen en milisegundos y se aplica el offset
