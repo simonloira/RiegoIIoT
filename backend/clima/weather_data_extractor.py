@@ -1,7 +1,7 @@
 import xmltodict
 import sqlite3
 from dataclasses import asdict
-from json import loads, dumps, dump 
+from json import dump, loads
 from os import path
 from requests import get, exceptions                        
 from time import time, sleep
@@ -339,8 +339,8 @@ class GetAemetData():
                 continue
 
             with open(file_path, "w", encoding="UTF-8") as file:
-                file.write(f"{dumps(data[key])}")
-            
+                dump(data[key], file)
+
             file_paths.append(file_path)
         
         return failure, f"\nGuardados: {file_paths}.\n Conflictivos:{no_data_paths}"
