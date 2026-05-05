@@ -1,18 +1,24 @@
-import xmltodict
 import sqlite3
 from dataclasses import asdict
+from datetime import datetime, timedelta
 from json import dump, loads
 from os import path
-from requests import get, exceptions                        
-from time import time, sleep
-from typing import Any                                     
+from pathlib import Path
+from time import sleep, time
+from typing import Any
 
-from datetime import datetime, timedelta
-from backend.basics.json_tools import load_json_file       #type: ignore
-from settings import settings as server_settings           #type: ignore
-from backend.clima.models import (APIState,                #type: ignore
-                                  MeteoGaliciaData, 
-                                  MAP_SIMPLE, MAP_COMPLEX) 
+import xmltodict
+from requests import exceptions, get
+
+from backend.basics.json_tools import load_json_file  #type: ignore
+from backend.clima.models import (  #type: ignore
+    MAP_COMPLEX,
+    MAP_SIMPLE,
+    APIState,
+    MeteoGaliciaData,
+)
+from settings import settings  #type: ignore
+
 
 class GetMeteogaliciaData():
     def __init__(self) -> None:
