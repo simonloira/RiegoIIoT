@@ -3,9 +3,9 @@ import sqlite3
 from dataclasses import asdict
 from json import loads, dumps, dump 
 from os import path
-from requests import get, exceptions
+from requests import get, exceptions                        
 from time import time, sleep
-from typing import Any 
+from typing import Any                                     
 
 from datetime import datetime, timedelta
 from backend.basics.json_tools import load_json_file       #type: ignore
@@ -38,11 +38,27 @@ class GetMeteogaliciaData():
         
 
     def get_data(self) -> tuple[MeteoGaliciaData | None, bool]:
+        """ Punto de entrada para llamar a meteogalicia. 
+
+            Returns:
+                tuple[MeteoGaliciaData | None, bool]: Se compone por:
+                    - MeteogaliciaData: Si el fetch fue bien, devuelve la información 
+                    guardada en RAM conseguida en el fetch. Si no, devuelve la última
+                    información guardada en la base de datos
+                    - None: Si hubo algún fallo de lectura en la base de datos.
+                    - bool: Fallo en la llamada a la API.
+        """
         data = self.__fetch_meteogalicia()
         fetch_failed = self.__save_data(data)
         return data if data is not None else self.get_last_saved(), fetch_failed
     
     def get_last_saved(self) -> MeteoGaliciaData | None:
+        """Coge la última información guardada
+
+        Returns:
+            MeteoGaliciaData | None: Si hubo aǵun error de lectura devuelve None, si no 
+            devuelve la última información guardada de Metetogalicia.
+        """
         with self.conn as conn:
             conn.row_factory = sqlite3.Row
             cu = conn.cursor()
@@ -55,6 +71,16 @@ class GetMeteogaliciaData():
     
 
     def __save_data(self, data:MeteoGaliciaData|None) -> bool:
+        """ Guarda la información en una base de datos SQLite y devuelve si hubo algún error.
+
+            Args:
+                data (MeteoGaliciaData | None): La información de meteogalicia.
+
+            Returns:
+                bool: Si hubo algún error y no se recibió información de meteogalicia o
+                si la información actual es igual a la que está guardada devuelve True.
+                Si fue todo bien devuelve False.
+        """
         if data is None:
             return True
         
@@ -72,6 +98,12 @@ class GetMeteogaliciaData():
         return False
 
     def __fetch_meteogalicia(self) -> MeteoGaliciaData | None:
+        """ Punto de entrada para la llamada a Meteogalicia
+
+            Returns:
+                MeteoGaliciaData | None: Si se cayó meteogalicia o hubo algún error se devuelve None.
+                Si fue todo bien se devuelve el objeto de la dataclass con los valores asignados. 
+        """
         try:
             # Se obtienen los datos climatológicos:
             raw_data: dict[str,Any] = self.__get_raw_data()
@@ -84,6 +116,17 @@ class GetMeteogaliciaData():
             return None
     
     def filter_raw_data(self, raw_data: dict[str, Any]) -> MeteoGaliciaData | None:
+        """ Filtra la información cruda que llega desde la API de meteogalicia y le asigna
+            los valores a la dataclass MeteoGaliciaData
+
+            Args:
+                raw_data (dict[str, Any]): Informción cruda de meteogalicia
+
+            Returns:
+                MeteoGaliciaData | None: Si se cayó meteogalicia recibió un diccionario vacío,
+                por lo que se devuelve None. Si fue todo bien se devuelve el objeto de la dataclass
+                con los valores asignados
+        """
         if raw_data == {}:
             return None
         
@@ -110,6 +153,16 @@ class GetMeteogaliciaData():
         return data 
 
     def __get_accumulated_rain(self, id_station:str) -> float:
+            """ Se calcula la lluvia acumulada mediante los valores que llegan de la gráfica diezminutal
+                de lluvia de meteogalicia.
+
+                Args:
+                    id_station (str): Es un número en formato string, corresponde al id de la base de datos
+                    de meteogalicia. Está guardado en el backend/clima/datos_clima/meteogalicia/IDStation.json
+
+                Returns:
+                    float: Cantidad de lluvia acumulada en el día de hoy
+            """
             print("Calculando lluvia acumulada del día")
             url_base = "https://apis-ext.xunta.gal/meteo2api/v1/api/graficas/datos/10minutal?idIntervalo=1&idGrafica=2&parametros=10001&"
 
@@ -127,6 +180,17 @@ class GetMeteogaliciaData():
             return round(accumulated,2)
 
     def __get_raw_data(self) -> dict[str, str| int | list[dict[str, str | int | list[dict[str, str | int]]]]]:
+        """ Esta función coge los datos crudos de meteogalicia, tal cual como llegan. Además también tiene en cuenta que, a veces,
+            puede ser que alguna estación no envíe datos. Entonces, se llama a la estación siguiente más cercana para ver si tiene datos
+            actualizados, si tiene datos igual de actualizados que la estación anterior, se queda con la anterior. Si no tiene, coge 
+            los datos de la siguiente. Si ninguna tiene datos recientes (algo raro, ya se tendrían que alinear los astros 
+            si se cae meteogalicia) se manda un diccionario vacío, aunque lo normal es que siempre mande datos. El único escenario
+            donde no mandaría datos es si meteogalicia está caído porque daría timeout error en todas las peticiones por lo que
+            most_updated_data se quedaría valiendo {}.
+
+            Returns:
+                dict[str, str| int | list[dict[str, str | int | list[dict[str, str | int]]]]]: Información cruda de la API
+        """
         #Pongo Any porque resp.json() devuelve Any, aunque la estructura
         #del json es la que tengo escrita como retorno de la función
         most_updated_data: dict[str, Any] = {} 
@@ -134,15 +198,8 @@ class GetMeteogaliciaData():
         
         for station, id in self.idstation.items():
             url = f"https://apis-ext.xunta.gal/meteo2api/v1/api/estacion-meteorologica/ultimos-datos?idEstacion={id}&idioma=gl"
-
-            headers = {
-                "apikey": "",
-                "Accept": "application/json",
-                "User-Agent": "Mozilla/5.0"
-            }
-
             try:
-                resp = get(url, headers=headers, timeout=5)
+                resp = get(url, headers=self.headers, timeout=5)
                 data = resp.json()
                 print(f"\nA ver si {station} tiene datos actualizados")
                 #Se divide entre mil porque vienen en milisegundos y se aplica el offset
@@ -173,14 +230,22 @@ class GetMeteogaliciaData():
                 sleep(2) #Se espera un poco antes de volver a pedir
                 continue
         
-        most_updated_data["accumulated_rain"] = get_accumulated_rain(most_updated_data["id_estation"])
-        # print(f"\nDatos crudos de meteogalicia ({most_updated_data["station"]}): ", most_updated_data)
         return most_updated_data
     
-    def __read_ids_stations(self, path:str):
+    def __read_ids_stations(self, path:str) -> dict[str, str]:
+        """ Lee los ids de las estaciones. Están ordenadas en su archivo correspondiente 
+            de más póxima a más lejana.
+
+            Args:
+                path (str): Ruta del archivo json con los ids de las estaciones
+
+            Returns:
+                dict[str, str]: Nombre de la estación como key y el id en forma de string
+                como value.
+        """
         data = load_json_file(path)
         if data == {}:
-            data = {"Cabo Udra": "10905"} #abo udra por defecto
+            data = {"Cabo Udra": "10905"} #Cabo udra por defecto
         return data
 
 
@@ -193,6 +258,11 @@ class GetAemetData():
                                'hourly':['@fecha', '@orto', '@ocaso', 'estado_cielo', 'precipitacion', 'temperatura', "sens_termica"]}
         
     def get_data(self) -> tuple[dict[str, Any], bool]:
+        """Punto de entrada para llamar a Aemet. 
+
+        Returns:
+            tuple[dict[str, Any], bool]: Información de Aemet y fallo guardando la información
+        """
         new_data = self.__fetch()
         failure, message = self.__save(new_data)
         print(message)
@@ -208,6 +278,12 @@ class GetAemetData():
         return final_output, failure
     
     def get_last_saved(self) -> dict[str, Any]:
+        """ Lee la última información guardada, se usa en WeatherMain cuando comprueba
+            que aemet no puede llamar
+
+            Returns:
+                dict[str, Any]: Información de Aemet.
+        """
         final_output: dict[str, Any] = {}
         for key in self.links.keys():
             cached = self.__read_file(f"aemet/{key}")
@@ -218,6 +294,14 @@ class GetAemetData():
         return final_output
 
     def __read_file(self, file_name:str) -> list[str] | None:
+        """Lee el archivo de Aemet (7d o hourly)
+
+        Args:
+            file_name (str): Nombre del archivo (7d, hourly)
+
+        Returns:
+            list[str] | None: Devuelve las líneas que leyó del archivo
+        """
         path_file = f"{server_settings.CLIMATE_DATA_PATH}/{file_name}.json"
         
         if not path.exists(path_file):
@@ -232,6 +316,15 @@ class GetAemetData():
     def __save(self, 
              data:dict[str, None | dict[str, str | list[dict[str, Any]]]]
              ) -> tuple[bool, str]:
+        """Sobrescribe un archivo txt para guardar la información de Aemet.
+
+        Args:
+            data (dict[str, None  |  dict[str, str  |  list[dict[str, Any]]]]): Información de Aemet
+
+        Returns:
+            tuple[bool, str]: Error guardando ya que no había información para guardar y mensaje de
+            archivos en los que se puedo guardar y en los que no.
+        """
         ruta = f"{server_settings.CLIMATE_DATA_PATH}/aemet"
         
         file_paths:list[str] = []
@@ -253,6 +346,12 @@ class GetAemetData():
         return failure, f"\nGuardados: {file_paths}.\n Conflictivos:{no_data_paths}"
 
     def __fetch(self) -> dict[str, None | dict[str, str | list[dict[str, Any]]]]:
+        """Punto de entrada para llamar a Aemet
+
+        Returns:
+            dict[str, None | dict[str, str | list[dict[str, Any]]]]: Información de Aemet.
+            Sigue la siguiente estructura {'7d': {info de 7d}, 'hourly': {info de hourly}}
+        """
 
         filtered_data:dict[str, None | dict[str, str | list[dict[str, Any]]]] = {}
 
@@ -264,7 +363,17 @@ class GetAemetData():
     
         return filtered_data
 
-    def __call_aemet(self, weather_params:list, url:str) -> Dict: 
+    def __call_aemet(self, weather_params:list[str], url:str) -> dict[str, str | list[dict[str, Any]]] | None: 
+        """ Llama a Aemet para conseguir la información cruda de un tipo de dato (7d o hourly). 
+            La información se obtiene parseando un xml. 
+
+            Args:
+                weather_params (list[str]): Parámetros interesantes de cada tipo de dato.
+                url (str): Enlace para conseguir el xml de 7d/hourly
+
+            Returns:
+                dict[str, str | list[dict[str, Any]]] | None: Información cruda de 7d/hourly
+        """
         try:
             xml_text = get(url, timeout=5).text
 
@@ -280,6 +389,16 @@ class GetAemetData():
                       weather_params:list[str], 
                       aemet_data:dict[str, Any]
                       ) -> dict[str, str | list[dict[str, Any]]]:
+        """Se filtra la información cruda
+
+            Args:
+                weather_params (list[str]): Parámetros interesantes de cada tipo de dato.
+                aemet_data (dict[str, Any]): Información cruda del xml de aemet parseado.
+
+            Returns:
+                dict[str, str | list[dict[str, Any]]]: Información filtrada de cada tipo 
+                de dato (7d/hourly)
+        """
         root_keys = ["elaborado", "nombre"]
         selected_data: dict[str, Any] = {}
         
@@ -313,6 +432,15 @@ class WeatherMain:
                                                  "meteogalicia": self.meteogalicia.get_last_saved}
         
     def get_weather_data(self, apis:list[str]=["aemet", "meteogalicia"]) -> dict[str, Any]:
+        """ Punto de entrada para obtener toda la información climatológica
+
+            Args:
+                apis (list[str], optional): Por defecto [aemet, meteogalica], si sólo se quiere obtener datos de una api: ["aemet"]/["meteogalicia]
+
+            Returns:
+                dict[str, Any]: Información de la apis junta en un diccionario. Sigue la siguiente estructura:
+                {'aemet': {info de aemet}, 'meteogalicia': {info de meteogalicia}}
+        """
         
         if len(apis) == 0:
             raise ValueError("No se escogió una API correcta: [aemet, meteogalicia]")
@@ -349,6 +477,18 @@ class WeatherMain:
         return full_data
 
     def __api_call_flow(self, api:str, api_state_path:str) -> tuple[Any, bool]:
+        """ Gestiona la llamada a la API.
+
+            Args:
+                api (str): Nombre de la API
+                api_state_path (str): Valores de reintento y del tiempo hasta que
+                se debe de volver a llamar a la API (TTL). 
+                `Guardado en: backend/clima/datos_clima/CLIMATE_APIS_CONFIG.json`
+
+            Returns:
+                tuple[Any, bool]: Devuelve la información de la API y si falló la llamada
+                para gestionar asignar el tiempo de reintento.
+        """
         self.api_state = self.__load_api_call_vars(F"{server_settings.CLIMATE_DATA_PATH}/{api_state_path}")
     
         if not self.api_state.can_call_or_retry(self.cache_ttl): #Si se cumplió esta condición no se recibe nueva info climatológica
@@ -364,7 +504,6 @@ class WeatherMain:
         """Cargar estado de la API desde archivo"""
         
         api_vars = load_json_file(file_path)
-        # print(f"Estado de la API {api_vars}\n")
         if api_vars == {}:
             return APIState()
         
