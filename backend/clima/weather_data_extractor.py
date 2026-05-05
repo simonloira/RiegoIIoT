@@ -67,16 +67,17 @@ class GetMeteogaliciaData():
             MeteoGaliciaData | None: Si hubo aǵun error de lectura devuelve None, si no 
             devuelve la última información guardada de Metetogalicia.
         """
-        with self.conn as conn:
+        with sqlite3.connect(self.meteogal_path/"meteogal.db") as conn:
             conn.row_factory = sqlite3.Row
-            cu = conn.cursor()
-            row = cu.execute('SELECT * FROM climate_data ORDER BY id DESC LIMIT 1').fetchone()
-        
+            row = conn.execute(
+                          'SELECT * FROM climate_data ORDER BY id DESC LIMIT 1'
+                            ).fetchone()
+
         if row is None:
             return None
-    
+
         return MeteoGaliciaData(**{k: row[k] for k in row.keys() if k != "id"})
-    
+
 
     def __save_data(self, data:MeteoGaliciaData|None) -> bool:
         """ Guarda la información en una base de datos SQLite y devuelve si hubo algún error.
@@ -91,18 +92,23 @@ class GetMeteogaliciaData():
         """
         if data is None:
             return True
-        
-        with self.conn as conn:     
-            cu = conn.cursor()
-            row = cu.execute('SELECT id FROM climate_data WHERE timestamp = ?', (data.timestamp,)).fetchone() 
+
+        with sqlite3.connect(self.meteogal_path/"meteogal.db") as conn:
+            row = conn.execute(
+                'SELECT id FROM climate_data WHERE timestamp = ?',
+                (data.timestamp,)
+            ).fetchone()
             if row:
                 return True
-            
-            d = asdict(data) 
-            cols = ", ".join(d.keys()) 
-            placeholders = ", ".join("?" * len(d))  
-            cu.execute(f'INSERT INTO climate_data ({cols}) VALUES ({placeholders})', list(d.values()))
-        
+
+            d = asdict(data)
+            cols = ", ".join(d.keys())
+            placeholders = ", ".join("?" * len(d))
+            conn.execute(
+                f'INSERT INTO climate_data ({cols}) VALUES ({placeholders})',
+                list(d.values())
+            )
+
         return False
 
     def __fetch_meteogalicia(self) -> MeteoGaliciaData | None:
