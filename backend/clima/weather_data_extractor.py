@@ -129,26 +129,34 @@ class GetMeteogaliciaData():
             try:
                 resp = get(url, headers=headers, timeout=5)
                 data = resp.json()
-                print(f"Comprobando si {station} tiene datos actualizados")
-                data_date = (data["date"] / 1000) + (3600 * self.utc_offset)
+                print(f"\nA ver si {station} tiene datos actualizados")
+                #Se divide entre mil porque vienen en milisegundos y se aplica el offset
+                #para corregirlo a UTC0 porque meteogalicia manda el dato en UTC-2/UTC-1
+                data_date = (data['date'] / 1000) + self.seconds_offset 
 
-                if most_recent_date > data_date: #Si la fecha más reciente (datos más actualizados) es mayor que la fecha de los datos actuales, no son datos más actualizados.
+                # Si la fecha más reciente (la de los datos más actualizados) es mayor 
+                # que la fecha de los datos actuales, no son datos más actualizados.
+                if most_recent_date > data_date: 
                     print(f"Esta estación no tiene los datos más actualizados: {station}")
                     print(f"Fecha más reciente: {most_recent_date} Fecha de los datos: {data_date}\n")
-                    sleep(2) #Se espera un tiempo para que Meteogalicia no reciba muschas solicitudes seguidas
+                    continue
+                elif most_recent_date == data_date:
+                    print(f"-> {station} está igual de actualizado que {most_updated_data['station']}.")
+                    print(f"Por lo que me quedaré con los datos de {most_updated_data['station']}")
                     continue
 
-                most_recent_date = data_date
+                most_recent_date = data_date #Hora con los datos más actualizados
                 most_updated_data = data
-                most_updated_data["station"] = station
-                most_updated_data["id_estation"] = id
+                most_updated_data['station'] = station
+                most_updated_data['id_estation'] = id
                 if (most_recent_date + 3600) > time(): #Sólo se permiten datos como máximo de hace una hora
                     print(f"{station} tiene datos actualizados")
                     break #Se termina el bucle para que no siga obteniendo datos de las demás estaciones ya que no es necesario
-                sleep(2) #Se espera un tiempo para que Meteogalicia no reciba muschas solicitudes seguidas
+                sleep(0.5) #Se espera un tiempo para que Meteogalicia no reciba muschas solicitudes seguidas
             except exceptions.RequestException as error:
-                print(f"Error llamando a meteogalicia {error}")
-                return {}
+                print(f"Error llamando a meteogalicia: {error}")
+                sleep(2) #Se espera un poco antes de volver a pedir
+                continue
         
         most_updated_data["accumulated_rain"] = get_accumulated_rain(most_updated_data["id_estation"])
         # print(f"\nDatos crudos de meteogalicia ({most_updated_data["station"]}): ", most_updated_data)
