@@ -8,11 +8,21 @@ from time import time, sleep
 from typing import Any 
 
 from datetime import datetime, timedelta
+from backend.basics.json_tools import load_json_file       #type: ignore
+from settings import settings as server_settings           #type: ignore
+from backend.clima.models import (APIState,                #type: ignore
+                                  MeteoGaliciaData, 
+                                  MAP_SIMPLE, MAP_COMPLEX) 
 
 class GetMeteogaliciaData():
     def __init__(self) -> None:
         self.idstation = self.__read_ids_stations(f"{server_settings.MAIN_CLIMATE_PATH}/datos_clima/meteogalicia/IDStation.json")
         self.conn = sqlite3.connect(f"{server_settings.CLIMATE_DATA_PATH}/meteogalicia/meteogal.db")
+        self.headers = {
+                "apikey": server_settings.METEOGAL_API,
+                "Accept": "application/json",
+                "User-Agent": "Mozilla/5.0"
+            }
         # Meteogalicia manda los datos con un desfase extraño, es como si internamente, el servidor de meteogalicia, 
         # restase dos horas (o 1 dependiendo del horario) a UTC0 por lo que la única forma de que corresponda con la 
         # hora local es con el offset manual. 
@@ -25,10 +35,13 @@ class GetMeteogaliciaData():
         else:
             self.seconds_offset = 0 # Corrección de hora. De meteogalicia se recibe UTC-(1 o 2 si invierno o no), 
                                     # Luego self.utc_offset hace la correción a UTC_SPAIN.
+        
+
     def get_data(self) -> tuple[MeteoGaliciaData | None, bool]:
         data = self.__fetch_meteogalicia()
         fetch_failed = self.__save_data(data)
         return data if data is not None else self.get_last_saved(), fetch_failed
+    
     def get_last_saved(self) -> MeteoGaliciaData | None:
         with self.conn as conn:
             conn.row_factory = sqlite3.Row
@@ -39,6 +52,8 @@ class GetMeteogaliciaData():
             return None
     
         return MeteoGaliciaData(**{k: row[k] for k in row.keys() if k != "id"})
+    
+
     def __save_data(self, data:MeteoGaliciaData|None) -> bool:
         if data is None:
             return True
