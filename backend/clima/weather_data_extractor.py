@@ -22,10 +22,12 @@ from settings import settings  #type: ignore
 
 class GetMeteogaliciaData():
     def __init__(self) -> None:
-        self.idstation = self.__read_ids_stations(f"{server_settings.MAIN_CLIMATE_PATH}/datos_clima/meteogalicia/IDStation.json")
-        self.conn = sqlite3.connect(f"{server_settings.CLIMATE_DATA_PATH}/meteogalicia/meteogal.db")
+        self.meteogal_path = settings.CLIMATE_DATA_PATH / "meteogalicia"
+        self.idstation = self.__read_ids_stations(
+            self.meteogal_path / "IDStation.json"
+        )
         self.headers = {
-                "apikey": server_settings.METEOGAL_API,
+                "apikey": settings.METEOGAL_API,
                 "Accept": "application/json",
                 "User-Agent": "Mozilla/5.0"
             }
@@ -250,7 +252,7 @@ class GetMeteogaliciaData():
         
         return most_updated_data
     
-    def __read_ids_stations(self, path:str) -> dict[str, str]:
+    def __read_ids_stations(self, path:Path) -> dict[str, str]:
         """ Lee los ids de las estaciones. Están ordenadas en su archivo correspondiente 
             de más póxima a más lejana.
 
@@ -320,12 +322,12 @@ class GetAemetData():
         Returns:
             list[str] | None: Devuelve las líneas que leyó del archivo
         """
-        path_file = f"{server_settings.CLIMATE_DATA_PATH}/{file_name}.json"
-        
+        path_file = Path(settings.CLIMATE_DATA_PATH/"file_name.json")
+
         if not path.exists(path_file):
             return None
-        
-        with open(path_file, "r", encoding="UTF-8") as file:   
+
+        with open(path_file, "r", encoding="UTF-8") as file:
             data = file.readlines()
             if len(data) > 0:
                 return data
@@ -343,7 +345,7 @@ class GetAemetData():
             tuple[bool, str]: Error guardando ya que no había información para guardar y mensaje de
             archivos en los que se puedo guardar y en los que no.
         """
-        ruta = f"{server_settings.CLIMATE_DATA_PATH}/aemet"
+        ruta = Path(settings.CLIMATE_DATA_PATH/"aemet")
         
         file_paths:list[str] = []
         no_data_paths: list[str] = []
@@ -441,7 +443,7 @@ class WeatherMain:
     def __init__(self) -> None:
         self.api_state: APIState #Se usa la misma variable para las dos apis
         self.time_retry: int 
-        self.apis_config = load_json_file(server_settings.CONFIG_APIS_FILE_PATH)
+        self.apis_config = load_json_file(settings.CONFIG_APIS_FILE_PATH)
         self.meteogalicia = GetMeteogaliciaData()
         self.aemet = GetAemetData()
         self.api_call_map:dict[str, Any] = {"aemet": self.aemet.get_data, 
@@ -486,9 +488,9 @@ class WeatherMain:
             else:
                 self.api_state.last_fetch_time = time() #última llamada a la API = tiempo actuals
                 self.api_state.next_retry_time = 0
-  
-            self.__save_api_call_vars(api_state = self.api_state, 
-                                      file_path = f"{server_settings.CLIMATE_DATA_PATH}/{api_state_path}")
+            vars_path = Path(settings.CLIMATE_DATA_PATH/api_state_path)
+            self.__save_api_call_vars(api_state = self.api_state,
+                                      file_path = vars_path)
             print(f"Obtenida la última información climatológica de {api}\n")
         
         print(full_data)
@@ -507,10 +509,8 @@ class WeatherMain:
                 tuple[Any, bool]: Devuelve la información de la API y si falló la llamada
                 para gestionar asignar el tiempo de reintento.
         """
-        self.api_state = self.__load_api_call_vars(F"{server_settings.CLIMATE_DATA_PATH}/{api_state_path}")
-    
-        if not self.api_state.can_call_or_retry(self.cache_ttl): #Si se cumplió esta condición no se recibe nueva info climatológica
-            print(api, " no puede llamar. Recuperando la última información guardada...")
+        path = Path(settings.CLIMATE_DATA_PATH/api_state_path)
+        self.api_state = self.__load_api_call_vars(path)
             return self.retrieve_save_map[api](), False
         
         #Se recibe la info climatológica de la API
@@ -518,7 +518,7 @@ class WeatherMain:
 
         return api_data, fetch_failed
 
-    def __load_api_call_vars(self, file_path:str) -> APIState:
+    def __load_api_call_vars(self, file_path:Path) -> APIState:
         """Cargar estado de la API desde archivo"""
         
         api_vars = load_json_file(file_path)
@@ -527,7 +527,7 @@ class WeatherMain:
         
         return APIState(**api_vars)
 
-    def __save_api_call_vars(self, api_state:APIState, file_path:str):
+    def __save_api_call_vars(self, api_state:APIState, file_path:Path):
         """Guardar estado de la API en archivo"""
         
         try:
