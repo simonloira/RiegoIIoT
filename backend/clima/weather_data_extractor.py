@@ -278,101 +278,64 @@ class GetAemetData():
 
 
 class WeatherMain:
-    def __init__(self):
+    def __init__(self) -> None:
         self.api_state: APIState #Se usa la misma variable para las dos apis
         self.time_retry: int 
         self.apis_config = load_json_file(server_settings.CONFIG_APIS_FILE_PATH)
         self.meteogalicia = GetMeteogaliciaData()
         self.aemet = GetAemetData()
-        self.api_call_map = {"aemet": self.aemet.get_aemet, 
-                             "meteogalicia": self.meteogalicia.fetch_meteogalicia}
+        self.api_call_map:dict[str, Any] = {"aemet": self.aemet.get_data, 
+                                            "meteogalicia": self.meteogalicia.get_data}
+        self.retrieve_save_map:dict[str, Any] = {"aemet": self.aemet.get_last_saved, 
+                                                 "meteogalicia": self.meteogalicia.get_last_saved}
         
-    def read_last_saved_data(self, apis=["aemet", "meteogalicia"]):
-        """Punto de entrada para conseguir los datos guardados previamente"""
-        saved_data = []
-        for api in apis:
-            files_store_data = self.apis_config[api]["data_file_name"].keys()
-            saved_data.append(self.__get_last_saved_data(api, files_store_data))
-            print(f"Leída la información climatológica guardada de {api}\n")
-        return saved_data
-    
-    def get_weather_data(self, apis=["aemet", "meteogalicia"]):
-        """Función principal: 
-            apis: Por defecto [aemet, meteogalica], si sólo se quiere obtener dartos de una api: ["aemet"]/["meteogalicia]
-            Devuelve una lista: 
-            True: En el websocket se permite enviar la información climatológica al cliente. Se pone a False en el websocket
-            Data: Información climatológica."""
+    def get_weather_data(self, apis:list[str]=["aemet", "meteogalicia"]) -> dict[str, Any]:
         
         if len(apis) == 0:
-            assert "No se escogió una API correcta: [aemet, meteogalicia]"
+            raise ValueError("No se escogió una API correcta: [aemet, meteogalicia]")
         
         #Determina el tipo de escritura del archivo (añadir texto o sobrescribirlo). 
-        save_mode_map = {} #Una vez ejecutado, por defecto pasaría a ser: save_mode_map={1:("7d","w"), "2":("h", "w"), "3": ("meteo", "a")}
-        weather_data = []
+        full_data:dict[str, Any] = {}
         for api in apis:
+            #Se recuperan los tiempos de llamada y de reintento de la API
             self.time_retry = self.apis_config[api]["time_retry"]
             self.cache_ttl = self.apis_config[api]["cache_ttl"]
             api_state_path = self.apis_config[api]["api_state_path"]
 
             print(f"\nProbando a llamar a {api}")
-        
-            #weather_data = lista que contiene los diccionarios que envía la API. Aemet manda 2 diccionarios, meteogal 1
-            #save_mode_map = un diccionario con el nombre de cada archivo donde se guardará cada tipo de datos
-            #de la API y su modo de guardado ({0: ("ejemplo.txt", "w")}
-            save_mode_map, weather_data = self.__api_call_flow(api=api, 
-                                                               api_state_path=api_state_path)
 
-            for data_index, (file_name, save_mode) in save_mode_map.items():
-                data_to_save = weather_data[data_index] #Weather_data empieza en 0
-                data_already_saved = self.__check_saved_data(f"{api}/{file_name}", data_to_save)
+            api_data, fetch_failed = self.__api_call_flow(api=api, api_state_path=api_state_path)
+            
+            if api_data is None:
+                continue
 
-                #Dependiendo de la api si no tiene info se manda una lista vacía (aemet) o con None dentro (meteogalicia)
-                if not (data_to_save == None or weather_data == [None] or len(data_to_save) == 0) and not data_already_saved: 
-                    self.__save_filt_climate_data(
-                        file_path=f"{api}/{file_name}", 
-                        data=data_to_save,
-                        mode=save_mode
-                    )
-                    continue
+            full_data[api] = api_data   
 
-                print(f"\n\nInfo ya guardada así que se guardará el tiempo para próximo intento {self.time_retry} {file_name}")
+            if fetch_failed:
+                print(f"\n\nFalló el fecth o info ya guardada así que se guardará el tiempo para próximo intento {self.time_retry} {api}")
                 self.api_state.next_retry_time = time() + self.time_retry
+            else:
+                self.api_state.last_fetch_time = time() #última llamada a la API = tiempo actuals
+                self.api_state.next_retry_time = 0
   
             self.__save_api_call_vars(api_state = self.api_state, 
                                       file_path = f"{server_settings.CLIMATE_DATA_PATH}/{api_state_path}")
             print(f"Obtenida la última información climatológica de {api}\n")
         
-        return self.read_last_saved_data(apis=apis)  
+        print(full_data)
+        return full_data
 
-    def __api_call_flow(self, api:str, api_state_path:str):
-
-        save_mode_map = {}
-        weather_data = [] #Datos de la API
-
+    def __api_call_flow(self, api:str, api_state_path:str) -> tuple[Any, bool]:
         self.api_state = self.__load_api_call_vars(F"{server_settings.CLIMATE_DATA_PATH}/{api_state_path}")
     
         if not self.api_state.can_call_or_retry(self.cache_ttl): #Si se cumplió esta condición no se recibe nueva info climatológica
-            print(api, " no puede llamar")
-            return save_mode_map, weather_data
+            print(api, " no puede llamar. Recuperando la última información guardada...")
+            return self.retrieve_save_map[api](), False
         
-        #Se recibe nueva info climatológica
-        weather_data = self.api_call_map[api]()
-        
-        #Memorizar el modo de guardado de la información climatológica en su archivo correspondiente (a: añadir texto, w: sobrescribir el archivo)
-        #Si api = emet: save_mode_map={0:("7d","w"), "1":("h", "w")} 
-        #Si api = meteogalicia: save_mode_map={0:("meteogalicia","a")} 
-        for index, (key, value) in enumerate(self.apis_config[api]["data_file_name"].items()):
-            save_mode_map[index] = (key, value)
-            
-        #Solución provisional para manejar la estructura de datos de Meteogalicia.
-        #Ya que a la hora de guardar la información en su correspondiente archivo, se espera un array
-        #Aemet devuelve un array que contiene dos diccionarios con su repectiva información (7d y h) 
-        #pero meteogalicia sólo manda un diccionario,
-        # if len(weather_data) != 2: 
-        #     weather_data = [weather_data]
+        #Se recibe la info climatológica de la API
+        api_data, fetch_failed = self.api_call_map[api]()   
 
-        self.api_state.last_fetch_time = time() #última llamada a la API = tiempo actuals
-        return  save_mode_map, weather_data
+        return api_data, fetch_failed
 
     def __load_api_call_vars(self, file_path:str) -> APIState:
         """Cargar estado de la API desde archivo"""
@@ -384,24 +347,6 @@ class WeatherMain:
         
         return APIState(**api_vars)
 
-    def __save_filt_climate_data(self, file_path:str, data:Dict[str,Any], mode="a"):
-        ruta = f"{server_settings.CLIMATE_DATA_PATH}/{file_path}"
-
-        if not path.exists(ruta):
-            mode = "w"
-
-        with open(ruta, mode, encoding="UTF-8") as file:
-            file.write(f"\n{dumps(data)}")
-        
-        print(f"\nGuardado: {file_path}\nEn {ruta}.\n")
-
-    def __check_saved_data(self, file_name:str, current_data:Dict): 
-        saved_data = loads(self.__read_file(file_name)[-1])
-
-        if saved_data == current_data:#Si ya está guardada la info climatológica se define el tiempo para reintentar otra llamada
-            return True #Ya se guardó anteriormente esa información
-        return False #No se guardó
-    
     def __save_api_call_vars(self, api_state:APIState, file_path:str):
         """Guardar estado de la API en archivo"""
         
@@ -413,22 +358,7 @@ class WeatherMain:
         except Exception as e:
             print(f"Error guardando estado de API: {e}")
  
-    def __read_file(self, file_name:str):
-        ruta = f"{server_settings.CLIMATE_DATA_PATH}/{file_name}"
-        
-        if path.exists(ruta):
-            with open(ruta, "r", encoding="UTF-8") as file:   
-                data = file.readlines()
-                if len(data) > 0:
-                    return data
-        
-        no_data = {"nada": "nada"}
-        return [dumps(no_data)]
 
-    def __get_last_saved_data(self, api:str, files_names:List[str]):
-        saved_data = []
-
-        for file_name in files_names:
-            saved_data.append(loads(self.__read_file(f"{api}/{file_name}")[-1]))
-
-        return saved_data
+if __name__ == "__main__":
+    weather = WeatherMain()
+    weather.get_weather_data() 
