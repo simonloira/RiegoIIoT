@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet"> <!-- Fuente tipográfica Roboto -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=android_wifi_4_bar,android_wifi_4_bar_alert,cloud_done,keyboard_arrow_down,report" />
+    <!-- Material web -->
+    <script type="importmap">
+        {
+        "imports": {
+            "@material/web/": "https://esm.run/@material/web/"
+        }
+        }
+    </script>
+    <script type="module">
+        // Importa los componentes de Material Web necesarios
+        import '@material/web/all.js';
+        import {styles as typescaleStyles} from '@material/web/typography/md-typescale-styles.js';
+        
+        document.adoptedStyleSheets.push(typescaleStyles.styleSheet);
+    </script>
+    <!-- Metadatos generales -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Riego automático</title>
+    <meta name="description" content="Control remoto del riego">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#09f">
+
+    <!-- Recursos estáticos -->
+    <link rel="icon" type="image/jpeg" href="{{ url_for('static', path='/favicon.jpeg') }}">
+    <link href="{{ url_for('static', path='/styles/styles-index.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', path='/styles/fonts.css') }}" rel="stylesheet">
+ </head>
+    <body>
+        <main>
+            <section class="home-window">
+                <h1>Inicio</h1>
+                <div id="status-automatic-irrigation">
+                    <h3>Estado actual del riego:</h3>
+                    <p id="status-irrigator">No hay datos</p>
+                    <p id="active-zones"></p>
+                </div>
+                <div id="well-level" class="unknown">
+                    <h3>Nivel del pozo</h3>
+                    <p id="well-status-text">No hay datos</p>
+                    <aside id="tip-message">
+                        <p>Instala los interruptores boya</p>
+                    </aside>
+                </div>
+                 <div id="system-status">
+                    <div class= "status-item" id="status-server">
+                        <div class="material-symbols-outlined" style="color: rgb(255, 0, 0);font-variation-settings: 'FILL' 1, 'wght'1000, 'GRAD' 200, 'opsz' 24;">android_wifi_4_bar_alert</div>
+                        <div class="status-text">Servidor desconectado</div>
+                    </div>
+                    <div class= "status-item" id="status-PLC">
+                        <div class="material-symbols-outlined" style="color: rgb(255, 0, 0);font-variation-settings: 'FILL' 1, 'wght'1000, 'GRAD' 200, 'opsz' 24;">report</div>
+                        <div class="status-text">El LOGO! no está conectado</div>
+                    </div>
+                    <div class="action-buttons">
+                        <a href="{{ url_for('static', path='/templates/history.html') }}"  class="btn-primary">Ver Historial</a>
+                        <a href="/prevision" class="btn-secondary">El Tiempo</a>
+                    </div>
+                </div>
+            </section>
+
+            <section class="control-window">
+                <h1>Control</h1>
+
+                <div id="quick-view-settings">
+                    <section id="last-activation">
+                        <h3>Última Activación</h3>
+                        <aside id="detailed-information"></aside>
+                    </section>
+                </div>
+
+                <div id="control-zones"></div>
+
+                <div id="quick-reads">
+                    <div id="readings-container"> </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Dialog de selección de tiempo con Material 3 Expressive y ripple -->
+        <div class="dialog-overlay" id="time-dialog-overlay">
+            <div class="time-dialog">
+                <h3 class="md-title">Seleccionar tiempo de riego</h3>
+
+                <!-- Display del tiempo -->
+                <div id="time-display" class="md-display">00:00:00</div>
+
+                <!-- Teclado numérico -->
+                <div id="numbers-buttons"></div>
+
+                <div class="dialog-buttons">
+                <button class="dialog-btn cancel ripple" onclick="closeTimeDialog()">Cancelar</button>
+                <button class="dialog-btn accept ripple" onclick="acceptTimeSelection()">Aceptar</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="dialog-overlay" id="settings-dialog-overlay">
+            <div class="settings-dialog">
+                <h3 class="md-title">Ajusteeeaaahs</h3>
+                </div>
+            </div>
+        </div>
+
+        <button class="accessibility-toggle">Aa⚪ Modo Accessible</button>
+        <dialog id="error"></dialog>
+    </body>
+
+    <script> //Mensajes del servidor al cliente Socket
+        let socket;
+        let dirSalidas, estadosSalidas, entradas, connectedLogo;
+        let lastOutputsState = []; //Es el estado anterior de la salida
+        let timeData = {} //Tiempo en segundos por defecto
+
+        if (document.visibilityState == "visible"){
+            socket = new WebSocket(`ws://${window.location.hostname}:8000/ws`);
+        }
+
+        socket.onopen = () => {
+            const serverElemet = document.getElementById("status-server");
+            serverElemet.innerHTML = `<div class="material-symbols-outlined" style="color: green;font-variation-settings: 'FILL' 1, 'wght'1000, 'GRAD' 200, 'opsz' 24;">android_wifi_4_bar</div>
+                                    <div class="status-text">Servidor conectado</div>
+                                    <div class="status-time">${new Date(Date.now()).toLocaleString()}</div>`
+            
+            sessionStorage.setItem("receivedTimeZones", JSON.stringify(false))
+
+            checkJWTToken()
+            refreshWeather()
+        };
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            const dialog = document.getElementById("error");
+            console.log(data)
+            if (Object.keys(data).includes("weatherData")){
+                //[aemet_d, aemet_h, meteogal]
+                localStorage.setItem("weatherData", JSON.stringify(data["weatherData"]))
+                const weatherData = JSON.parse(localStorage.getItem("weatherData"));
+                const meteogaliciaData = weatherData[1][0];
+
+                addGaugeMagnitude(meteogaliciaData);
+                gaugeLevel();
+            }
+
+            if (Object.keys(data).includes("entradas-salidas-dirSalidas")){
+                document.querySelector("body").style.filter = "none";
+                dialog.close();
+                entradas = data["entradas-salidas-dirSalidas"][0][0];
+                estadosSalidas = data["entradas-salidas-dirSalidas"][0][1];
+                dirSalidas = data["entradas-salidas-dirSalidas"][1];
+                changeButtonAppareance(estadosSalidas, dirSalidas);
+                changeStatusIrrigator(estadosSalidas);
+                activeZones(estadosSalidas, dirSalidas);
+                changeStatusWell(entradas)
+            }else{
+                document.querySelector("body").style.filter = "blur(6px)";
+                dialog.innerHTML = `<p>Recibiendo información del servidor...</p>`;
+                dialog.showModal();
+            }
+            timeData = receiveTimeData(data, timeData) //Por defecto es igual al diccionario del servidor
+            console.log("timeData socket.onmessage: ", timeData)
+            showConnectedLogo(data)
+            if (Object.keys(data).includes("loggedIn")){
+                checkIfLoggedIn(data["loggedIn"]);
+                localStorage.setItem("loggedIn", data["loggedIn"])
+            }
+            updateLastActivationHistory(data)
+        }
+    </script>
+
+    <script>//Representación de parámetros recibidos desde el servidor
+        function updateZoneTime(globalTimeData){ 
+            for(nombreZona of Object.keys(globalTimeData)){
+                // <label id="t-${nombreZona}">${time}</label>
+                let timeElement = document.getElementById(`t-${nombreZona}`);
+                timeElement.textContent = secondsToString(globalTimeData[nombreZona]);  
+            }
+        }
+
+        function checkIfLoggedIn(loggedIn){ //Comprueba si se sigue loggeado o no
+            if (!loggedIn){ //LoggedIn es recibido desde el server
+                document.querySelector("body").style.filter = "blur(6px)";
+                const dialog = document.getElementById("error");
+                dialog.innerHTML = `<h3>Error</h3> <p>Sesión caducada</p>`;
+                dialog.showModal();
+            }
+        }
+
+        function receiveTimeData(serverData, timeData){
+            let receivedTimeZones = JSON.parse(sessionStorage.getItem("receivedTimeZones")) //La primera vez no existe, pero bueno, no da error si no existe
+            if (!Object.keys(serverData).includes("timeZonesSecs")){
+                console.log("No existe")
+                return timeData //Si no se recibe en el JSON enviado desde el server una key que sea "timeZonesSecs" sale de la función
+            } 
+            let tempTimeZonesData = {};
+            let timeString = {};
+            console.log("serverTimeZoneSecs receivedTimeData: ", serverData["timeZonesSecs"])
+            for(zone of Object.keys(serverData["timeZonesSecs"])){
+                tempTimeZonesData[zone] = serverData["timeZonesSecs"][zone];
+                timeString[zone] = secondsToString(serverData["timeZonesSecs"][zone]);
+            }
+            if (!receivedTimeZones){ //Si no se recibió el diccionario por defecto de time_zones
+                //Esto sólo se ejecuta cuando se abre la página, una vez abierta no se vuelve a ejecutar hasta que se vuelva a abrir (o bueno, recargar también)
+                addZoneCard(timeString); //Renderiza el centro de control manual, creando los botones, zonas y lo importante, el tiempo.
+                sessionStorage.setItem("receivedTimeZones", true); //Se almacena que se recibió el diccionario por defecto para que no se vuelva a ejecutar este bloque
+            }else{
+                console.log("receivedTimeZones receiveTimeData", receivedTimeZones)
+                updateZoneTime(tempTimeZonesData); //Se actualiza sólo el texto que muestra el tiempo de cada zona
+            }
+            
+            return tempTimeZonesData
+        }
+
+        function secondsToString(totalSeconds){
+            const hours = Math.floor(totalSeconds / 3600).toString().padStart(2, "0");
+            const minutes = Math.floor((totalSeconds - hours * 3600) / 60).toString().padStart(2, "0");
+            const seconds = (totalSeconds - (hours * 3600 + (minutes * 60))).toString().padStart(2, "0");
+            return hours + ":" + minutes + ":" + seconds
+        }
+
+        function updateLastActivationHistory(serverData){
+            console.log(serverData)
+            if (!serverData["last-activation"]){
+                return
+            }
+            if (serverData["last-activation"].length == 0){
+                return
+            }
+            const detailedInfElement = document.getElementById('detailed-information');
+            const lastActivationElement  = document.getElementById('last-activation');
+            const date = serverData["last-activation"][0];
+            const message = serverData["last-activation"][1];
+            const minute = serverData["last-activation"][2][1];
+            const second = serverData["last-activation"][2][2];
+            const newText = `🌿 Fecha: ${date} \\A \\A ${message}`;
+            detailedInfElement.classList.add("filled");
+            lastActivationElement.classList.add("filled");
+            detailedInfElement.style.setProperty('--detailed-information', `'${newText}'`);
+            lastActivationElement.style.setProperty('--activation-time', `'✅ ${minute}min ${second}s'`);
+        }
+        
+      //Estado actual de conexión del PLC es llamada cuando el cliente recibe el estado de conexión del PLC LOGO!
+        function showConnectedLogo(serverData){ //Pasa los parámetros a la función que actualiza el estado del PLC
+            if (serverData["logoConectado"]){
+                updateStatusPLC("cloud_done", "LOGO! conectado correctamente", "green")
+            }else{
+                updateStatusPLC("report", "LOGO! desconectado", "red")
+            }
+        }
+       
+        function updateStatusPLC(statusIcon, statusText, color){ ////Actualiza el estado del PLC
+            const PLCElement = document.getElementById("status-PLC");
+            const date = new Date(Date.now());
+            PLCElement.innerHTML = `<div class="material-symbols-outlined" style="color: ${color};font-variation-settings: 'FILL' 1, 'wght'1000, 'GRAD' 200, 'opsz' 24;">${statusIcon}</div>
+                                    <div class="status-text">${statusText}</div>
+                                    <div class="status-time">${date.toLocaleString()}</div>
+                                    `
+        }
+
+        function changeButtonAppareance(estadosBools, direccionesSalidas){ //Cambia la visualización del botón correspondiente a cada zona
+            //HAY UN ERROR EN ESTA FUNCIÓN  QUE HAY QUE BUSCARLO: Al actualizar la página y teniendo varias zonas activas,
+            //sólo se cambia la apariencia del botón correspondiente a la primera zona activa. Yo supongo que será algo de que no se aplica el
+            // el estilo porque estoy haciendo algo mal con las clases.
+                                   
+            //------------------------------------------------------Variables globales: ---------------------------------------------------------------------//
+            //lastOutputsState -> Almacena el último estado de las salidas. En esta función se cambia su estado y también en activaciónZona().               //
+            //                    Sirve para saber qué zona varió su estado y cambiar la apariencia del botón correspondiente                                //
+            //-----------------------------------------------------------------------------------------------------------------------------------------------//
+            const zonesCard = document.querySelectorAll('.zone-card'); //Cojo todas las tarjetas con la clase .zona-card (dentro de ese elemento está el botón)
+            const zones = Object.keys(direccionesSalidas);
+ 
+            zonesCard.forEach((zoneCard, index) => {
+                let nombreZona = zones[index];
+                let countdown = document.getElementById('countdown-' + nombreZona); //Elemento del temporizador de cuenta atrás
+                let buttonsSpace = document.getElementById("but-" + nombreZona); //El propio botón de la zona actual
+                let direccionBitSalida = direccionesSalidas[nombreZona][1]; //Salida física del PLC correspondiente a la zona actual
+
+                let firstTimeActivated = (!lastOutputsState[direccionBitSalida] && estadosBools[direccionBitSalida]);
+                let alreadyActivated = (lastOutputsState[direccionBitSalida] && estadosBools[direccionBitSalida]);
+
+                if (!estadosBools[direccionBitSalida]){ 
+                    //Si no está activa la salida física de la zona actual se borra la posible información del temporizador
+                    //guardada en el localStorage. Esto se hace ya que cuando se desactiva manualmente la zona, se queda guardada la información
+                    finishZone(nombreZona);
+                }
+                
+                //TODO: Si la variable de sistema estable (M36 del PLC) está False, se añade la clase "locked" al botón y luego en CSS lo que tengo que hacer
+                // es poner la apariencia como en color gris para mostrar que está desactivado.
+
+                if(firstTimeActivated || alreadyActivated){
+                    lastOutputsState = estadosBools; 
+                    buttonsSpace.classList.remove('loading');
+                    buttonsSpace.classList.add('on');
+                    countdown.classList.add('visible');
+                    // Mostrar contador y empezar cuenta atrás
+                    zoneCard.classList.add('with-countdown');
+                    startCountdown(nombreZona, estadosBools, direccionBitSalida);
+                }
+
+                if(lastOutputsState[direccionBitSalida] && !estadosBools[direccionBitSalida]){
+                    // Desactivar zona
+                    lastOutputsState = estadosBools;
+                    buttonsSpace.classList.remove('loading');
+                    buttonsSpace.classList.remove('on');
+                    finishZone(nombreZona);
+                    countdown.classList.remove('visible');
+                    zoneCard.classList.remove('with-countdown');
+                }
+            });
+
+        }
+        
+        function changeStatusIrrigator(estadosBools){ //Cambia la visualización de la tarjeta del riego
+            const estadoText = document.getElementById("status-irrigator");
+            const estadoElement = document.getElementById("status-automatic-irrigation");
+            for (estadoSalida of estadosBools){
+                if(estadoSalida){
+                    estadoText.textContent = "Activo";
+                    estadoElement.style.background = "linear-gradient(135deg, #2196F3, #1976D2)"
+                    return
+                }
+                estadoElement.style.background = "linear-gradient(135deg, #3b5e7a, #597188)"
+                estadoText.textContent = "Inactivo";
+            }
+        }
+
+        function activeZones(estadosBools, direccionesSalidas){ //Muestra las zonas que están regándose en la tarjeta del riego
+             //estadosBools: Es un array recibido desde el server  con el estado de las salidas fïsicas del LOGO!: Ej.: [false, false, false, false]
+            //direccionesSalidas: es un diccionario recibido desde el server con la estructura: "zona": [ByteIndex, bitIndex] 
+            //El byte de las salidas es el byte 0 ya que sólo tiene 4 salidas físicas el LOGO! (4 bits) pero bueno, lo dejo así por si se quiere escalar
+            let activeZones = []; 
+            let activeZonesElement = document.getElementById("active-zones");
+            for (nombreZona of Object.keys(direccionesSalidas)){
+                //En el caso de escalar el sistema con más salidas (más de 7 salidas) meter otro bucle for i desde 0 hasta direccionesSalidas[nombreZona].length 
+                let bitSalida = direccionesSalidas[nombreZona][1]; 
+                if (estadosBools[bitSalida]){ //
+                    activeZones.push(nombreZona);
+                }
+            }
+            //Se escriben las zonas activas en la tarjeta de riego
+            if (activeZones.length == 0){
+                activeZonesElement.textContent = "";
+            }else{
+                activeZonesElement.textContent = "Zona(s) " + activeZones.join(", ");
+            }
+
+        }
+        
+        function changeStatusWell(estadosBool) { //Cambia la visualización de la tarjeta de nivel del pozo
+            // Direcciones entradas interruptores boya pozo: I1 (estadosBool[0]): Nivel alto | I2 (estadosBool[1]): Nivel medio
+            const wellSign = document.getElementById("well-level");
+            const wellStatusText = document.getElementById("well-status-text");
+            const tipText = document.getElementById("tip-message"); 
+
+            // Borrar todas las clases de estado anteriores
+            wellSign.classList.remove('nivel-alto', 'nivel-medio', 'nivel-bajo', 'error');
+
+            if (estadosBool.length == 0){
+                return //No hay datos porque PLC desconectado
+            }
+
+            if (estadosBool[0] && estadosBool[1]) {
+                // Nivel alto
+                wellSign.classList.add('nivel-alto');
+                wellStatusText.textContent = 'Alto';
+                tipText.textContent = "No hace falta preocuparse"
+            }
+            else if (estadosBool[0] && !estadosBool[1]) {
+                // Error: I2 no está funcionando correctamente
+                wellSign.classList.add('error');
+                wellStatusText.textContent = 'Error interruptor boya de nivel medio';
+                tipText.textContent = "No funciona correctamente"
+            }
+            else if (!estadosBool[0] && estadosBool[1]) {
+                // Nivel medio
+                wellSign.classList.add('nivel-medio');
+                wellStatusText.textContent = 'Medio';
+                tipText.textContent = "Vigila el nivel"
+            }
+            else {
+                // Nivel bajo
+                wellSign.classList.add('nivel-bajo');
+                wellStatusText.textContent = 'Bajo';
+                tipText.textContent = "Hasta que suba el nivel no se usará el pozo"
+            }
+        }
+    </script>
+
+    <script>//Creación del centro de control manual
+        function addZoneCard(timeData){
+            const zonesContainer = document.getElementById("control-zones");
+            const nombresZonas = Object.keys(timeData);
+            let html = ""
+            for (let i = 0; i < nombresZonas.length; i++){
+                let nombreZona = nombresZonas[i];
+                let time = timeData[nombreZona];
+                html += `
+                <div class="zone-card">
+                        <div class="zone-main-content">
+                            <span class="expand-icon material-symbols-outlined" id="expand-icon-${nombreZona}" onclick="toggleTimer('${nombreZona}')">keyboard_arrow_down</span>
+                            <p id="card-${nombreZona}">Zona ${nombreZona}
+                                <button type="button" id ="but-${nombreZona}" onclick="activaciónZona('${nombreZona}')"></button>
+                                <span class="zone-main-time">Duración:
+                                    <label id="t-${nombreZona}">${time}</label>
+                                </span>
+                            </p>
+                        </div>
+                        <div id="timer-${nombreZona}" class="timer invisible">
+                            <button class="time-selector-btn" onclick="openTimeDialog('${nombreZona}')">
+                            🕐 Seleccionar tiempo
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Contador hacia atrás -->
+                    <div class="zone-countdown-content" id="countdown-${nombreZona}">
+                        <div class="countdown-timer">
+                            <div class="countdown-unit">
+                                <span class="countdown-digit" id="min-tens-${nombreZona}">0</span>
+                            </div>
+                            <div class="countdown-unit">
+                                <span class="countdown-digit" id="min-units-${nombreZona}">5</span>
+                            </div>
+                            <span class="countdown-separator">:</span>
+                            <div class="countdown-unit">
+                                <span class="countdown-digit" id="sec-tens-${nombreZona}">0</span>
+                            </div>
+                            <div class="countdown-unit">
+                                <span class="countdown-digit" id="sec-units-${nombreZona}">0</span>
+                            </div>
+                        </div>
+                        <div class="countdown-status">Regando zona ${nombreZona}</div>
+                    </div>
+                </div>`
+            }
+            console.log(html)
+
+            zonesContainer.innerHTML = html
+        }
+    </script>
+
+    <script>//Representación temperatura y humedad
+        let hrTempValues = []
+
+        function gaugeLevel(){
+             // const colors = {"temperature": , "humidity": };
+            const colors = {
+                //["blue", "green", "orange", "red"]
+                "temperature": ["#2196F3", "#4CAF50", "#FF9800", "#F44336"], 
+                //["red", "orange", "green", "blue"]
+                "humidity": ["#F44336", "#FF9800", "#4CAF50", "#2196F3"] 
+            };
+            const maxValues = [60, 100];
+            const minValues = [-5, 0];
+            const magnitudes = Object.keys(colors);
+            
+            for (let i = 0; i < magnitudes.length; i++){
+                let gaugeLevelElement = document.getElementById("gauge-"+magnitudes[i]);
+                let degrees = ((hrTempValues[i] - minValues[i]) * 360) / (maxValues[i] - minValues[i]);
+                let percentage = ((hrTempValues[i] - minValues[i]) * 100) / (maxValues[i] - minValues[i]);
+                let color = colors[magnitudes[i]][0];
+                
+                if (percentage >= 35 && percentage < 48){
+                    color = colors[magnitudes[i]][1];
+                }else if(percentage >= 50 && percentage < 85){
+                    color = colors[magnitudes[i]][2];
+                }else if(percentage >= 85){
+                    color = colors[magnitudes[i]][3];
+                }
+                console.log(percentage)
+                
+                console.log(magnitudes[i], degrees, color);
+                gaugeLevelElement.style.setProperty(`--${magnitudes[i]}-color`, color);
+                gaugeLevelElement.style.setProperty(`--${magnitudes[i]}-degrees`, degrees + "deg");
+            }
+        }
+
+        function addGaugeMagnitude(weatherData){
+            const readingsContainer = document.getElementById("readings-container");
+            const nombresMagnitudes = ["temperature", "humidity"];
+            const totalMagnitudes = Object.keys(weatherData);
+            let html = "";
+            
+            for (let i = 0; i < nombresMagnitudes.length; i++){
+                let values = weatherData[totalMagnitudes[i]];
+                let title = values[0];
+                let value = values[1];
+                let unit = values[2];
+                hrTempValues.push(value);
+                
+                html += `
+                    <div class="reading-item">
+                        <div id="gauge-${nombresMagnitudes[i]}">
+                            <div class="gauge-value">
+                                <span id="gauge-value-${nombresMagnitudes[i]}">${value + " " + unit}</span>
+                            </div>
+                        </div>
+                        <div class="gauge-label">${title}</div>
+                        <div class="chart-mini">
+                            <div class="chart-line"></div>
+                        </div>
+                    </div>
+                `
+            }
+            
+            html += `<p id="info-updated-weather"> Información actualizada el: 
+                <span>${weatherData["date"]}</span>
+            </p>`
+            
+            readingsContainer.innerHTML = html
+            
+            // Esperar a que el DOM se actualice
+            requestAnimationFrame(() => {
+                gaugeLevel()
+            });
+        }
+
+    </script>
+
+    <script> //Enviar comandos al server
+        function refreshWeather(){
+            // Se ejecuta al inicio
+            socket.send(JSON.stringify({ comando: "refresh_weather" }));
+            console.log("Weather refrescado ✅ (inicio)");
+
+            // Y luego cada 50 minutos
+            setInterval(() => {
+                socket.send(JSON.stringify({ comando: "refresh_weather" }));
+                console.log("Weather refrescado ✅ (intervalo)");
+            }, 50 * 60 * 1000);
+        }
+
+        //Comprobación del token JWT
+            function checkJWTToken(){//Al entrar en la página se envía al servidor la orden de comprobar el token JWT
+                //Da igual si el cliente borra esta función pensando que así no se comprueba el token y se mantiene loggedIn en True
+                //Ya que el loggedIn en localStorage no hace nada simplemente tiene función de debuggeo pero lo dejo en localStorage por si acaso
+                //Lo importante está en el server, porque si el server no detecta que está loggeado, no va a exisitir ningún tipo de comunicación entre cliente y server
+                if (localStorage.getItem("loggedIn") && (localStorage.getItem("token") !== "")){
+                    console.log("Comprobando el token");
+                    socket.send(JSON.stringify({comando: "check_signature",
+                                            token: getCookie("auth_token")}))
+                }
+            }
+            //Se consigue la cookie que contiene el token almacenado
+            function getCookie(cname) {
+                let name = cname + "=";
+                let decodedCookie = decodeURIComponent(document.cookie);
+                let ca = decodedCookie.split(';');
+                for(let i = 0; i < ca.length; i++) {
+                    let c = ca[i];
+                    while (c.charAt(0) == ' ') {
+                        c = c.substring(1);
+                    }
+                    if (c.indexOf(name) == 0) {
+                        return c.substring(name.length, c.length);
+                    }
+                }
+                return "";
+            }
+        
+        
+        function sendZoneTime(nombreZona, tiempoActivacion){
+            socket.send(JSON.stringify({comando: "change_zone_time-"+nombreZona,
+                                        t_activacion: tiempoActivacion,
+            }))
+        }
+
+
+        function activaciónZona(nombreZona){
+            let tiempoActivacion = timeData[nombreZona]; //timeData variable global, objeto con los datos de tiempo por zonas
+            // console.log(tiempoActivacion)
+            const buttonsSpace = document.getElementById("but-" + nombreZona)
+            buttonsSpace.classList = "loading"
+            // lastOutputsState = estadosSalidas; Ya no hace falta, no me acuerdo por qué lo comenté pero bueno, ir va así //Se guarda el estado actual de las salidas para comprobar en el futuro qué zona cambió de estado
+            socket.send(JSON.stringify({comando: "act-"+nombreZona,
+                                        t_activacion: tiempoActivacion,
+            }))
+
+        }
+
+        // function desactivaciónZona(nombreZona, tiempo){
+        //     socket.send(JSON.stringify({comando: "desAct-"+nombreZona,
+        //                                 t_activacion: tiempo,
+        //     }))
+        // }
+    </script>
+
+    <script>//Contador de cuenta atrás del riego
+        function initCounter(zona){ //Inicializa los datos del contador de la zona
+            // Obtener tiempo del label (formato HH:MM:SS)
+            const timeLabel = document.getElementById('t-' + zona).textContent; //Texto de la zona que contiene el tiempo en formato hh:mm:ss
+            const timeParts = timeLabel.split(':');
+            const hours = parseInt(timeParts[0]) || 0;
+            const minutes = parseInt(timeParts[1]) || 0;
+            const seconds = parseInt(timeParts[2]) || 0;
+
+            //[countdownInterval, currentCountdownTime, irrigationTime, init_hour]
+            const totalSeconds = (hours * 3600) + (minutes * 60) + seconds;
+            const infoContador = [null, totalSeconds, totalSeconds, Date.now()/1000]//[intervalID, segundosRestantes, tiempoRiego, fecha de inicio en milisegundos desde el 01/01/1970]
+            localStorage.setItem("infoContador-"+zona, JSON.stringify(infoContador));
+        }
+
+        function startCountdown(zona) {
+            if (!localStorage.getItem("infoContador-"+zona)){ //Si no existe el contador se inicializa
+                initCounter(zona)
+            }
+            const infoContador = JSON.parse(localStorage.getItem("infoContador-"+zona))
+            let irrigationTime = infoContador[2];
+            let elapsedTime = (Date.now()/1000 - infoContador[3]);
+            let currentCountdownTime = infoContador[1] - (Math.round(elapsedTime) - (irrigationTime-infoContador[1]))
+            //Puede parecer que infoContador[1] sobra ya que aquí se está usando igual que irrigationTime, pero más abajo infoContador[1] será sobreescrito
+            // console.log(elapsedTime, "s")
+            // console.log(`${Date.now()} - ${infoContador[3]}`);
+            // console.log("currentCountdownTime: ", currentCountdownTime)
+
+            updateCountdownDisplay(zona, currentCountdownTime);
+
+            if (infoContador[0] === null){
+                infoContador[0] = setInterval(() => {
+                    currentCountdownTime--;
+
+                    if ((currentCountdownTime <= 0 || elapsedTime > irrigationTime) && infoContador.length > 0) {
+                        // Tiempo terminado
+                        console.log(infoContador[0])
+                        let tiempo = irrigationTime;
+                        // desactivaciónZona(zona, tiempo)
+                        finishZone(zona);
+
+                    } else {
+                        updateCountdownDisplay(zona, currentCountdownTime);
+                        infoContador[1] = currentCountdownTime;
+                        localStorage.setItem("infoContador-"+zona, JSON.stringify(infoContador));
+                    }
+
+                }, 1000);
+            }
+            
+        }
+
+
+        function updateCountdownDisplay(zona, totalSeconds) {
+            console.log(`Zona: ${zona}
+                        Totalseconds: ${totalSeconds}`)
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+
+            const minTens = Math.floor(minutes / 10);
+            const minUnits = minutes % 10;
+            const secTens = Math.floor(seconds / 10);
+            const secUnits = seconds % 10;
+
+            document.getElementById('min-tens-' + zona).textContent = minTens;
+            document.getElementById('min-units-' + zona).textContent = minUnits;
+            document.getElementById('sec-tens-' + zona).textContent = secTens;
+            document.getElementById('sec-units-' + zona).textContent = secUnits;
+        }
+
+        function finishZone(zona) {
+            const button = document.getElementById('but-' + zona);
+            const countdown = document.getElementById('countdown-' + zona);
+            //infoContador[zona] = [countdownInterval, currentCountdownTime, irrigationTime, init_hour]
+            const infoContador = JSON.parse(localStorage.getItem("infoContador-"+zona) || "{}");
+            // Desactivar zona automáticamente
+            clearInterval(infoContador[0])
+
+            console.log("zona"+zona, "apagando")
+            localStorage.removeItem("infoContador-"+zona);
+            button.classList.remove('on');
+            countdown.classList.remove('visible');
+
+            console.log("Oyeeeeee está listo eeeeeh")
+        }
+
+    </script>
+
+    <script>//Escritura de tiempo de riego
+        let currentDialogZone = null;
+        let timeDigits = "";
+        let totalSeconds = 0;
+        let zoneSelected = "";
+
+        //Cuando se pulsa la flecha hacia abajo se desplega la tarjeta de la zona y se ve el botón de selección de tiempo.
+        function toggleTimer(nombreZona) {
+            const elementTimer = document.getElementById('timer-'+nombreZona);
+            const cardZone = document.getElementById('card-'+nombreZona);
+            const expandIcon = document.getElementById('expand-icon-'+nombreZona);
+            if (elementTimer.classList.contains('visible')) {
+                elementTimer.classList.remove('visible');
+                elementTimer.classList.remove('expanded');
+                cardZone.classList.remove('timer-visible')
+                expandIcon.classList.remove('expanded')
+            } else {
+                elementTimer.classList.add('visible');
+                elementTimer.classList.add('expanded');
+                cardZone.classList.add('timer-visible')
+                expandIcon.classList.add('expanded')
+            }
+        }
+
+        function openTimeDialog(zoneName) {
+            createNumbersDialogTime();
+            openDialog("time-dialog-overlay")
+            timeDigits = "";
+            zoneSelected = zoneName;
+            updateDisplay();
+        }
+
+        function closeTimeDialog() {
+            currentDialogZone = null;
+            closeDialog("time-dialog-overlay")
+        }
+
+        function createNumbersDialogTime() {
+            const numbersButtons = document.getElementById("numbers-buttons");
+            numbersButtons.innerHTML = "";
+
+            for (let i = 1; i <= 9; i++) {
+                numbersButtons.innerHTML += `<button class="ripple" onclick="addDigit('${i}')">${i}</button>`;
+            }
+
+            numbersButtons.innerHTML += `<button class="ripple" onclick="addDigit('00')">00</button>`;
+            numbersButtons.innerHTML += `<button class="ripple" onclick="addDigit('0')">0</button>`;
+            numbersButtons.innerHTML += `<button class="ripple" onclick="deleteDigit()">⌫</button>`;
+        }
+
+        function addDigit(d) {
+            if (timeDigits.length >= 6) return;
+            timeDigits += d;
+            if (timeDigits.length > 6) timeDigits = timeDigits.slice(0, 6);
+            updateDisplay();
+        }
+
+        function deleteDigit() {
+            timeDigits = timeDigits.slice(0, -1);
+            updateDisplay();
+        }
+
+        function updateDisplay() {
+            let padded = timeDigits.padStart(6, "0");
+            let h = padded.slice(0, 2);
+            let m = padded.slice(2, 4);
+            let s = padded.slice(4, 6);
+            document.getElementById("time-display").innerText = `${h}:${m}:${s}`;
+            totalSeconds = h*3600 + m*60 + s*1;
+        }
+
+        function acceptTimeSelection() {
+            // let finalTime = document.getElementById("time-display").innerText;
+            // let timeText = document.getElementById("t-" + zoneSelected)
+            // timeText.innerText = finalTime;
+            timeData[zoneSelected] = totalSeconds;
+            sendZoneTime(zoneSelected, totalSeconds)
+            // alert("Tiempo seleccionado: " + totalSeconds);
+            closeTimeDialog();
+        }
+    </script>
+
+    <script>
+        function closeDialog(elementID){
+            document.getElementById(elementID).classList.remove("visible");
+        }
+        function openDialog(elementID){
+            document.getElementById(elementID).classList.add("visible");
+        }
+
+        function clickedOutDialog(elementClicked){
+            console.log(elementClicked)
+            let elementID = ["settings-dialog-overlay", "time-dialog-overlay"]
+            if (elementID.includes(elementClicked)){
+                closeDialog(elementClicked)
+            }
+        }
+       
+        document.addEventListener('click', function(e) {
+                e = e || window.event;
+                let target = e.target || e.srcElement; 
+                clickedOutDialog(target.id);
+        }, false);
+
+    </script>
+</html>
+
+
+
+
+
+
+
+
+
+
+

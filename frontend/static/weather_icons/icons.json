@@ -1,0 +1,77 @@
+{
+    "Despejado": "11.svg",
+    "Despejado noche": "11n.svg",
+
+    "Poco nuboso": "12.svg",
+    "Poco nuboso noche": "12n.svg",
+
+    "Intervalos nubosos": "14.svg",
+    "Intervalos nubosos noche": "14n.svg",
+
+    "Nuboso": "15.svg",
+    "Nuboso noche": "15.svg",
+
+    "Muy nuboso": "15.svg",
+    "Muy nuboso noche": "15.svg",
+
+    "Cubierto": "15.svg",
+    "Cubierto noche": "15.svg",
+
+    "Nubes altas": "17.svg",
+    "Nubes altas noche": "17n.svg",
+
+    "Intervalos nubosos con lluvia escasa": "44.svg",
+    "Intervalos nubosos con lluvia escasa noche": "44n.svg",
+
+    "Nuboso con lluvia escasa": "44.svg",
+    "Nuboso con lluvia escasa noche": "44n.svg",
+
+    "Muy nuboso con lluvia escasa": "45.svg",
+    "Muy nuboso con lluvia escasa noche": "45.svg",
+
+    "Cubierto con lluvia escasa": "46.svg",
+    "Cubierto con lluvia escasa noche": "46.svg",
+
+    "Intervalos nubosos con lluvia": "23.svg",
+    "Intervalos nubosos con lluvia noche": "23n.svg",
+
+    "Nuboso con lluvia": "23.svg",
+    "Nuboso con lluvia noche": "23n.svg",
+
+    "Muy nuboso con lluvia": "25.svg",
+    "Muy nuboso con lluvia noche": "25.svg",
+
+    "Cubierto con lluvia": "26.svg",
+    "Cubierto con lluvia noche": "26.svg",
+
+    "Intervalos nubosos con tormenta": "51.svg",
+    "Intervalos nubosos con tormenta noche": "51n.svg",
+
+    "Nuboso con tormenta": "51.svg",
+    "Nuboso con tormenta noche": "51n.svg",
+
+    "Muy nuboso con tormenta": "51.svg",
+    "Muy nuboso con tormenta noche": "51n.svg",
+
+    "Cubierto con tormenta": "51.svg",
+    "Cubierto con tormenta noche": "51n.svg",
+
+    "Intervalos nubosos con tormenta y lluvia escasa": "51.svg",
+    "Intervalos nubosos con tormenta y lluvia escasa noche": "51n.svg",
+
+    "Nuboso con tormenta y lluvia escasa": "51.svg",
+    "Nuboso con tormenta y lluvia escasa noche": "51n.svg",
+
+    "Muy nuboso con tormenta y lluvia escasa": "51.svg",
+    "Muy nuboso con tormenta y lluvia escasa noche": "51n.svg",
+
+    "Cubierto con tormenta y lluvia escasa": "51.svg",
+    "Cubierto con tormenta y lluvia escasa noche": "51n.svg",
+
+    "Niebla ": "81.svg",
+    "Niebla  noche": "81.svg",
+    "Bruma": "82.svg",
+    "Bruma noche": "82.svg",
+    "Calima": "83.svg",
+    "Calima noche": "83n.svg"
+}

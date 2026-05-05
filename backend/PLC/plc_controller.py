@@ -1,0 +1,136 @@
+import backend.PLC.rwConnectLogo as rwConnectLogo
+from backend.history.activation_history import write_history, write_last_activation
+from backend.history.time_server import seconds_to_hour
+from asyncio import sleep, create_task, CancelledError
+from backend.basics.json_tools import load_json_file, save_json_file
+from server.settings import settings as PLCSettings
+
+
+def write_message_history(message:str, secs_act:int):
+    h, m, s = seconds_to_hour(secs_act)
+    message += f" {h:02d}h {m:02d}m {s:02d}s"
+    write_history("logo", message)
+
+
+class PLCController:
+    def __init__(self):
+    #Carga las direcciones del PLC
+        # BYTES_VM: TManuales zona y TAutomáticos zona: [wordTiempo(byte, byte+1), byteBaseTiempo(s/m/h)] 
+        # | weekly_timer[bytedías_acivados, wordontime, wordofftime] | astro-clock[wordSunriseOffsetTime]
+        self.BYTES_VM = load_json_file(PLCSettings.VM_PATH) #Importa las memorias virtuales (contadores de zonas, días de activación...)
+        # TIME_DATA: {"zona": t_activación (int)}
+        self.TIME_DATA = load_json_file(PLCSettings.TZ_PATH) #Tiempo de riego de las zonas en segundos
+        # ADDRESS_SSM: {"zona": [byteIndex, bitIndex]}
+        self.BYTES_SSM = load_json_file(PLCSettings.SSM_PATH) #Direcciones de memoria de los estados del sistema (StatusSystemMemories)
+      #Direcciones de memoria de las zonas de riego
+        BYTES_ZM = load_json_file(PLCSettings.ZM_PATH) 
+        ##Los siguientes datos siguen la estructura: #"zona":[Byte index, bool index]
+        self.direcciones_remoto_zonas = BYTES_ZM["DIRECCIONES_CONTROL_WEB"]
+        self.direcciones_act_local_plc = BYTES_ZM["DIRECCIONES_ACT_LOCAL_PLC"] #Control automático programado en PLC y control manual desde el PLC
+        self.direcciones_salida = BYTES_ZM["DIRECCIONES_SALIDAS"]
+
+        self.plc_client = rwConnectLogo.ReadWritePLC()
+        self.active_tasks = {}
+        self.active_memories = []
+
+    def obtener_estados(self):
+        self.entradas = self.plc_client.leer_entradas()
+        salidas = self.plc_client.leer_salidas()
+        self.check_well_level()
+        return [self.entradas, salidas]        
+
+    def ejecutar_comando(self, command:str, tiempo_activacion: int):
+        estado_memorias = self.plc_client.read_memories()
+        print(f"Estado real antes: {estado_memorias}")
+        
+        zona = command.split("-")[1] #(act/desAct)-zona por eso para coger la zona se separa desde el guión
+        direccion = self.direcciones_remoto_zonas[zona]
+        
+        #Podría hacer el código más plano poniendo arriba el "if command == "desAct"+zona" pero es más legible así
+        if command == "act-"+zona:
+            if estado_memorias[direccion[0]][direccion[1]]:
+                self.__cancel_task(name_task=f"off-{zona}")
+                self.plc_client.write_memories(self.direcciones_remoto_zonas[zona], False)
+                write_history("logo", f"La zona {zona} fue detenida manualmente.")
+                write_last_activation(f"La zona {zona} fue detenida manualmente.", ("XX", "XX", "XX"))
+                return 
+           # No se escribe directamente la salida del PLC, porque sino es más difícil de entender en el programa del LOGO el por qué se enciende desde la web
+            self.plc_client.write_memories(self.direcciones_remoto_zonas[zona], True)
+            write_message_history(f"Activada la zona {zona} durante:", tiempo_activacion)
+            
+            self.active_tasks[f"off-{zona}"] = create_task( #El server empieza a contar el tiempo de funcionamiento
+                self.shutdown_output_PLC(zone=zona, activation_time=tiempo_activacion)
+            ) 
+
+    def __cancel_task(self, name_task:str):
+        # Cancelar task si existe
+        if name_task in self.active_tasks:
+            self.active_tasks[name_task].cancel()
+            del self.active_tasks[name_task]
+
+    def check_well_level(self):
+        if (self.entradas is None) or (self.entradas == []):
+            return
+        if not self.entradas[1]: #Si no se detecta señal del interruptor boya, se apagan todas las salidas del PLC
+            print("\nNivel del pozo bajo, se detienen todas las salidas")
+            self.stop_plc(off_only_zones=True)
+
+    def stop_plc(self, off_only_zones=False):
+        """Stops all PLC outputs"""
+        print("Deteniendo todo")
+        
+        estado_memorias = self.plc_client.read_memories()
+        if estado_memorias is None:
+            print("Error leyendo memorias = None")
+            return
+        
+        for zona, direccion in self.direcciones_remoto_zonas.items():
+            if estado_memorias[direccion[0]][direccion[1]]:
+                self.__cancel_task(name_task=zona)
+                self.plc_client.write_memories(self.direcciones_remoto_zonas[zona], False)
+        
+        print("Estado salidas: ", self.plc_client.leer_salidas())
+
+        if not off_only_zones:
+            #Desactivar M18 y M19 (lloverá, servidor conectado respectivamente)
+            self.plc_client.write_memories(self.BYTES_SSM["Lluvia"], False)
+            self.plc_client.write_memories([2,2], False)
+    
+    def write_raining_memorie(self, rain): #Se llama en tasks.py después de obtener la información climatológica
+        #Memoria: M18(M2.1)
+        self.plc_client.write_memories(self.BYTES_SSM["Lluvia"], rain)
+    
+    def save_time(self, value:list, memory_name:str):
+        self.plc_client.write_VM(value, self.BYTES_VM[memory_name])
+        zone = memory_name.split("-")[1]
+        self.TIME_DATA[zone] = value[0]
+        save_json_file("timeData", PLCSettings.TZ_PATH, self.TIME_DATA)
+
+    async def plc_watchdog(self):
+        while True:
+            memories_status = self.plc_client.read_memories() 
+            if memories_status is None:
+                await sleep(5) #Espero un poco más por si hay algún problema de comunicación que no trate de leer las memorias contantemente.
+                continue
+            for name, address in self.direcciones_act_local_plc.items():
+                if address not in self.active_memories:
+                    if memories_status[address[0]][address[1]]:
+                        self.active_memories.append(address)
+                        message = f"Activado desde el PLC: {name} "
+                        write_history("logo", message)
+                
+                if address in self.active_memories:
+                    if not memories_status[address[0]][address[1]]:
+                        del self.active_memories[self.active_memories.index(address)]
+            await sleep(2) #Cada 2 segundos leo el estado de las memorias
+    
+    async def shutdown_output_PLC(self, zone:str, activation_time:int):
+        try:
+            await sleep(activation_time)
+            self.plc_client.write_memories(self.direcciones_remoto_zonas[zone], False)
+            write_message_history(f"La zona {zone} terminó de regarse", activation_time)
+            write_last_activation(f"La zona {zone} fue regada durante:", seconds_to_hour(activation_time)) #seconds_to_hour -> (hour, minutes, seconds)
+        except CancelledError:
+            print(f"Apagado automático de {zone} cancelado por forzado apagado")
+        finally:
+            self.active_tasks.pop(zone, None) #Da igual si da error o no que al terminar de ejecutarse el bloque se elimina la tarea

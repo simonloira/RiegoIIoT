@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+        <script type="importmap">
+            {
+            "imports": {
+                "@material/web/": "https://esm.run/@material/web/"
+            }
+            }
+        </script>
+        <script type="module">
+            // Importa los componentes de Material Web necesarios
+            import '@material/web/all.js';
+            import {styles as typescaleStyles} from '@material/web/typography/md-typescale-styles.js';
+            
+            document.adoptedStyleSheets.push(typescaleStyles.styleSheet);
+        </script>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+
+        <title>Historial - Riego automático</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width">
+        <meta name="description" content="Historial del sistema de riego">
+        <meta property="og:title" content="Historial - Control remoto del riego">
+        <meta property="og:description" content="Historial de eventos del sistema de riego">
+        <meta property="og:image" content="./static/visionSat.jpeg">
+        <meta name="robots" content="index, follow">
+        <meta name="theme-color" content="#09f">
+        <link rel="icon" type="image/jpeg" href="../favicon.jpeg">
+        <link rel="stylesheet" type="text/css" href="../styles/styles-history.css">
+        <link rel="stylesheet" type="text/css" href="../styles/fonts.css">
+    </head>
+    <body>
+        <div class="header">
+            <h1 class="page-title">Historial del sistema</h1>
+            <a href="/"  class="back-btn">
+                ← Volver al inicio
+            </a>
+        </div>
+        <div class="container">
+            <!-- Panel del Servidor -->
+            <div class="history-panel server-panel">
+                <div class="panel-header">
+                    <div class="panel-icon">S</div>
+                    <h2 class="panel-title">
+                        <span class="status-indicator server-status"></span>
+                        Historial del Servidor
+                    </h2>
+                    <button class="refresh-btn" onclick="refreshHistory()" title="Actualizar historial">
+                        ↻
+                    </button>
+                </div>
+                <div class="history-content" id="server-history">
+                    <div class="empty-state">
+                        <div class="empty-icon">⚡</div>
+                        <p>Conectando al servidor...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel del LOGO -->
+            <div class="history-panel logo-panel">
+                <div class="panel-header">
+                    <div class="panel-icon">L</div>
+                    <h2 class="panel-title">
+                        <span class="status-indicator logo-status"></span>
+                        Historial del LOGO PLC
+                    </h2>
+                    <button class="refresh-btn" onclick="refreshHistory()" title="Actualizar historial">
+                        ↻
+                    </button>
+                </div>
+                <div class="history-content" id="logo-history">
+                    <div class="empty-state">
+                        <div class="empty-icon">🔌</div>
+                        <p>Esperando datos del PLC...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            
+            let miStorage = window.localStorage;        
+            let socket;
+
+	        try{
+	            socket = new WebSocket(`ws://${window.location.host}/ws`);
+	        }catch(e){
+	            cosole.error("No se pudo acceder al backend", e);
+	        }
+
+            socket.onopen = () => {
+                console.log("Conexión WebSocket establecida");
+                
+                if (localStorage.getItem("loggedIn") && (localStorage.getItem("token") !== "")) {
+                    console.log("Comprobando el token");
+                    socket.send(JSON.stringify({
+                        comando: "check_signature",
+                        token: localStorage.getItem("token")
+                    }));
+                }
+            };
+
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                console.log("Datos recibidos:", data);
+                
+                if (data["history"]) {
+                    updateHistory(data["history"]);
+                }
+            };
+
+            socket.onerror = (error) => {
+                console.error("Error WebSocket:", error);
+                showError("server-history", "Error de conexión con el servidor");
+                showError("logo-history", "Error de conexión con el PLC");
+            };
+
+            function updateHistory(historyData) {
+                // Actualizar historial del servidor
+                if (historyData.server) {
+                    updatePanel("server-history", historyData.server, "server");
+                }
+                
+                // Actualizar historial del LOGO
+                if (historyData.logo) {
+                    updatePanel("logo-history", historyData.logo, "logo");
+                }
+            }
+
+            function updatePanel(panelId, data, type) {
+                const panel = document.getElementById(panelId);
+                
+                if (Object.keys(data).length === 0) {
+                    const emptyIcon = type === "server" ? "⚡" : "🔌";
+                    const emptyMessage = type === "server" ? 
+                        "No hay eventos del servidor" : 
+                        "No hay eventos del PLC";
+                    
+                    panel.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">${emptyIcon}</div>
+                            <p>${emptyMessage}</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = "";
+                let timestamp = "";
+                let message = "";
+                for (let i = Object.keys(data).length-1; i >= 0; i--){
+                    let key = Object.keys(data)[i]
+                    if(data[key].length == 2){ //Si es información de un dispositivo conectado o desconectado se recibe un array de dos elementos
+                        //Estructura de data: {"idDispositivo": [timestamp, message]}
+                        timestamp = data[key][0]
+                        message = data[key][1];
+                    }else{ 
+                        //Si es información de servidor iniciado o activación del riego se recibe una string y siempre va a tener una
+                        //longitud mayor que dos (no va a tener sólo 2 caracteres)
+                        //Estructura de data: {"timestamp": messaget}
+                        timestamp = key;
+                        message = data[timestamp];
+                    }
+
+                    html += createHistoryEntry(timestamp, message);
+                    panel.innerHTML = html;
+                }     
+            }
+
+            function createHistoryEntry(timestamp, message) {
+                return `
+                    <div class="history-entry">
+                        <span class="entry-time">${timestamp}</span>
+                        <p class="entry-message">${message}</p>
+                    </div>
+                `;
+            }
+
+            function showError(panelId, errorMessage) {
+                const panel = document.getElementById(panelId);
+                panel.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">⚠️</div>
+                        <p>${errorMessage}</p>
+                    </div>
+                `;
+            }
+
+            function refreshHistory() {
+                console.log("Refrescando historial...");
+                
+                // Animar botones de refresco
+                const refreshBtns = document.querySelectorAll('.refresh-btn');
+                refreshBtns.forEach(btn => {
+                    btn.classList.add('spinning');
+                    btn.disabled = true;
+                });
+
+                // Mostrar estado de carga
+                showLoading("server-history", "Actualizando servidor...");
+                showLoading("logo-history", "Actualizando PLC...");
+
+                // Solicitar actualización al servidor
+                if (socket.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify({
+                        comando: "refresh_history"
+                    }));
+                } else {
+                    console.log("WebSocket non está conectado, intentando reconectar...");
+                }
+
+                // Quitar animación despué de un tiempo
+                setTimeout(() => {
+                    refreshBtns.forEach(btn => {
+                        btn.classList.remove('spinning');
+                        btn.disabled = false;
+                    });
+                }, 1500);
+            }
+
+            function showLoading(panelId, message) {
+                const panel = document.getElementById(panelId);
+                panel.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">🔄</div>
+                        <p>${message}</p>
+                    </div>
+                `;
+            }
+        </script>
+    </body>
+</html>
+
+
+

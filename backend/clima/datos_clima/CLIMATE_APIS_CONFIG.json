@@ -1,0 +1,20 @@
+{
+  "aemet": {
+    "api_state_path": "aemet/vars_aemet_api.json",
+    "data_file_name": {
+      "aemet_7d.txt": "w",
+      "aemet_h.txt": "w"
+    },
+    "cache_ttl": 36000,
+    "time_retry": 18000
+  },
+  
+  "meteogalicia": {
+    "api_state_path": "meteogalicia/vars_meteogal_api.json",
+    "data_file_name":{
+      "meteogal.txt": "a"
+    },
+    "cache_ttl": 1200,
+    "time_retry": 900
+  }
+}

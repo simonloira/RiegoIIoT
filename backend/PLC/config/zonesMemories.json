@@ -1,0 +1,58 @@
+{
+  "DIRECCIONES_ACT_LOCAL_PLC": {
+    "ManualPiscina": [
+      0,
+      6
+    ],
+    "ManualPorche": [
+      1,
+      0
+    ],
+    "ManualCallejon": [
+      1,
+      1
+    ],
+    "AutomáticoPiscina": [
+      1,
+      2
+    ],
+    "AutomáticoPorche": [
+      1,
+      3
+    ],
+    "AutomáticotCallejon": [
+      1,
+      4
+    ]
+  },
+
+  "DIRECCIONES_CONTROL_WEB": {
+    "piscina": [
+        1,
+        5
+    ], 
+    "porche": [
+        1,
+        6
+    ], 
+    "callejon": [
+        1,
+        7
+    ]
+  },
+
+  "DIRECCIONES_SALIDAS": {
+    "piscina": [
+        0,
+        0
+    ], 
+    "porche": [
+        0,
+        1
+    ], 
+    "callejon": [
+        0,
+        2
+    ]
+  } 
+}

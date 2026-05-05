@@ -1,0 +1,46 @@
+{
+  "T.MZ-piscina": {
+    "2": "word",
+    "4": "byte"
+  },
+  "T.MZ-porche": {
+    "5": "word",
+    "7": "byte"
+  },
+  "T.MZ-callejon": {
+    "8": "word",
+    "10": "byte"
+  },
+  "T.Auto-piscina": {
+    "11": "word",
+    "13": "byte"
+  },
+  "T.Auto-porche": {
+    "14": "word",
+    "16": "byte"
+  },
+  "T.Auto-callejon": {
+    "17": "word",
+    "19": "byte"
+  },
+  "weekly-timer": {
+    "20": "byte",
+    "21": "word",
+    "23": "word"
+  },
+  "T.Remote-piscina": {
+    "29": "word",
+    "31": "byte"
+  },
+  "T.Remote-porche": {
+    "32": "word",
+    "34": "byte"
+  },
+  "T.Remote-callejon": {
+    "35": "word",
+    "37": "byte"
+  },
+  "astro-clock": {
+    "25": "word"
+  }
+}

@@ -1,0 +1,74 @@
+
+<!--
+Datos:
+    01/11/2025
+    Sunrise_hour = 08:08 -> 8 + 8/60 = 8.13
+    Sunset_hour = 18:28 -> 18 + 28/60 = 18.46
+    percent_sunrise = {8.13*100)/24} = 33.875% -> porcentaje de día que transcurre hasta que amanece
+    percent_sunset = {18.46*100)/24} = 76.91% -> porcentaje de día que transcurre hasta que anochece
+
+Descripción SVG:
+    Primer path: Es el horizonte, va del extremo del container hasta el otro extremo en la mitad del mismo (altura 100/2) 
+
+    Segundo path: Es la primera curva de noche, se mueve a: -percent_sunrise,50, luego se hace una Quadratic Bézier:
+        el primer punto es el punto de control que x es la mitad del diámetro del arco (d=percent_sunrise+percent_sunrise)
+        la mitad sería d/2 entonces a -percent_sunrise se le suma percent_sunrise y da 0. El segundo punto es el final del arco,
+        percent_sunrise,50.
+
+    Tercer path: Se mueve al punto de inicio de la curva de día. El punto de inicio es percent_sunrise,50 y se hace 
+                una Quadratic Bézier: y se hace lo mismo que arriba (d=percent_sunset-percent_sunrise)
+                Control: (percent_sunrise+d/2),0 
+                Final: percent_sunset,50
+
+    Cuarto path: Es la última curva de noche. El punto de inicio es percent_sunset,50. Luego la curva esa que lo que hace es: 
+                Punto de control: (d=100+percent_sunrise) percent_sunset+d/2,90
+                Punto final: 100+percent_sunrise,50     
+-->
+<!--
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <path d="M0,50 
+            L100,50" stroke="#876905" fill="none" stroke-width="2"></path>
+
+    <path d="M -{percent_sunrise},50
+            Q 0,90 {percent_sunrise},50
+            
+            " stroke="#262626" fill="black" stroke-width="2"></path>
+
+    <path d="M {percent_sunrise},50
+            Q {(percent_sunrise+(percent_sunset-percent_sunrise)/2)},0 {percent_sunset},50
+            " stroke="#F0D192" fill="#F7E7BE" stroke-width="2"></path>
+    
+     <text x="33.888888888888886" y="50" style="font-size:4px">08:08</text>
+     <text x="66.91" y="50" style="font-size:4px">18:28</text>
+
+    <path d="
+            M {percent_sunset},50
+            Q {percent_sunset+((100+percent_sunrise)-percent_sunset)/2},90 {100+percent_sunrise},50
+            
+            " stroke="#262626" fill="black" stroke-width="2"></path>
+    <circle id="celestial-body" cx="89.72222222222223" cy="62.0452825627979" r="5" fill="#C0C0C0"></circle>
+</svg>
+-->
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <path d="M0,50 
+            L100,50" stroke="#876905" fill="none" stroke-width="2"></path>
+
+    <path d="M -33.888888888888886,50
+            Q 0,100 33.88,50
+            
+            " stroke="#262626" fill="black" stroke-width="2"></path>
+
+    <path d="M 33.888888888888886,50
+            Q 55.41,0 76.94444444444444,50
+            " stroke="#F0D192" fill="#F7E7BE" stroke-width="2"></path>
+    
+     <text x="33.888888888888886" y="50" style="font-size:4px">08:08</text>
+     <text x="66.91" y="50" style="font-size:4px">18:28</text>
+
+    <path d="
+            M 76.94444444444444,50
+            Q 105.41,100 133.88,50
+            
+            " stroke="#262626" fill="black" stroke-width="2"></path>
+    <circle id="celestial-body" cx="89.72222222222223" cy="62.0452825627979" r="5" fill="#C0C0C0"></circle>
+</svg>
