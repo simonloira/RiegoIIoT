@@ -1,6 +1,12 @@
 from dataclasses import dataclass
 from time import time
 
+type AllMagnitudeVariants = None | list[MagnitudData] | MagnitudData | str
+type RawAemetData = dict[str, dict[str, AemetPrediction | str]]
+type AemetPrediction = dict[str, list[DayData]]
+type DayData = dict[str, str | list[MagnitudData]]
+type MagnitudData = dict[str, str] | str
+
 @dataclass
 class MeteoGaliciaData:
     timestamp: str
