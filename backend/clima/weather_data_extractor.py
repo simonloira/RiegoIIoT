@@ -313,19 +313,7 @@ class GetAemetData():
         self.links = {'7d': "https://www.aemet.es/xml/municipios/localidad_36004.xml",
                       'hourly':"https://www.aemet.es/xml/municipios_h/localidad_h_36004.xml"}
 
-        self.weather_params =  {'7d':[
-                                     '@fecha', 'estado_cielo',
-                                     'prob_precipitacion', 'uv_max',
-                                     'temperatura'
-                                    ],
-                               'hourly':[
-                                         '@fecha', '@orto', '@ocaso',
-                                         'estado_cielo', 'precipitacion',
-                                         'temperatura', "sens_termica"
-                                        ]
-                              }
-
-    def get_data(self) -> tuple[dict[str, Any], bool]:
+    def get_data(self) -> tuple[dict[str, AemetData], bool]:
         """Punto de entrada para llamar a Aemet.
 
         Returns:
@@ -342,7 +330,7 @@ class GetAemetData():
             if new_data.get(key) is not None:
                 final_output[key] = new_data[key]
             else:
-                cached = self.__read_file(f"{key}.json")
+                cached = self._read_file(f"{key}.json")
                 final_output[key] = loads(cached[-1]) if cached else {}
         return final_output, failure
 
@@ -355,14 +343,14 @@ class GetAemetData():
         """
         final_output: dict[str, Any] = {}
         for key in self.links.keys():
-            cached = self.__read_file(f"{key}.json")
+            cached = self._read_file(f"{key}.json")
             if cached:
                 final_output[key] = loads(cached[-1])
             else:
                 final_output[key] = {}
         return final_output
 
-    def __read_file(self, file_name:str) -> list[str] | None:
+    def _read_file(self, file_name:str) -> list[str] | None:
         """Lee el archivo de Aemet (7d o hourly)
 
         Args:
@@ -417,29 +405,24 @@ class GetAemetData():
         return (failure,
                f"\nGuardados: {file_paths}.\n Conflictivos:{no_data_paths}")
 
-    def __fetch(self) -> dict[str, None | dict[str, str | list[Any]]]:
+    def _fetch(self) -> dict[str, AemetData | None]:
         """Punto de entrada para llamar a Aemet
 
         Returns:
-            dict[str, None | dict[str, str | list[dict[str, Any]]]]:
-            Información de Aemet. Sigue la siguiente estructura:
+            dict[str, AemetData | None]: Información de Aemet.
+            Sigue la siguiente estructura:
             `{"7d": "info de 7d", "hourly": "info de hourly"}`
         """
 
-        filtered_data:dict[str, None | dict[str, str | list[Any]]] = {}
+        filtered_data:dict[str, AemetData | None] = {}
 
-        for key in self.weather_params.keys():
-            params = self.weather_params[key]
-            selected_data = self.__call_aemet(weather_params = params,
-                                              url = self.links[key])
+        for key in self.links.keys():
+            selected_data = self._call_aemet(url = self.links[key])
             filtered_data[key] = selected_data
 
         return filtered_data
 
-    def __call_aemet(self,
-                     weather_params:list[str],
-                     url:str
-                     ) -> dict[str, str | list[dict[str, Any]]] | None:
+    def _call_aemet(self,url:str) -> AemetData | None:
         """ Llama a Aemet para conseguir la información cruda de un tipo de
             dato (7d o hourly). La información se obtiene parseando un xml.
 
@@ -455,14 +438,16 @@ class GetAemetData():
         try:
             xml_text = get(url, timeout=5).text
             parsed_data = xmltodict.parse(xml_text)
-            selected_data = self.__select_data(weather_params = weather_params,
-                                               aemet_data = parsed_data)
+            selected_data = self._select_data(aemet_data = parsed_data)
 
             return selected_data
         except exceptions.RequestException as error:
             print(f"Error llamando a aemet {error}")
             return None
 
+    def _select_data(self,
+                     aemet_data:RawAemetData
+                    ) -> AemetData:
         """Se filtra la información cruda y se normaliza ya que Aemet
            manda un caos como JSON y mypy está quejándose todo el rato
            con los tipos de datos.
@@ -479,6 +464,7 @@ class GetAemetData():
         days:list[AemetDayBase] = []
         root = aemet_data['root']
         prediction:AemetPrediction = cast(AemetPrediction, root['prediccion'])
+
         for day in prediction['dia']:
             max_temp = None
             min_temp = None
