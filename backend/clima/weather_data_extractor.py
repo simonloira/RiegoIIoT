@@ -382,14 +382,13 @@ class GetAemetData():
                 return data
             return None
 
-    def __save(self,
-               data:dict[str, None | dict[str, str | list[dict[str, Any]]]]
+    def _save(self,
+               data:dict[str, AemetData | None]
                ) -> tuple[bool, str]:
-        """Sobrescribe un archivo txt para guardar la información de Aemet.
+        """Sobrescribe un archivo JSON para guardar la información de Aemet.
 
         Args:
-            data (dict[str, None  |  dict[str, str  |  list[dict[str, Any]]]]):
-            Información de Aemet
+            data (dict[str, AemetData | None]): Información de Aemet
 
         Returns:
             tuple[bool, str]: Error guardando ya que no había información para
@@ -398,19 +397,20 @@ class GetAemetData():
         """
         ruta = Path(settings.CLIMATE_DATA_PATH/"aemet")
 
-        file_paths:list[str] = []
-        no_data_paths: list[str] = []
+        file_paths:list[Path] = []
+        no_data_paths: list[Path] = []
         failure = False
         for key in data.keys():
-            file_path = f"{ruta}/{key}.json"
+            file_path = Path(ruta/f'{key}.json')
 
-            if data[key] is None:
+            d = data[key]
+            if d is None:
                 no_data_paths.append(file_path)
                 failure = True
                 continue
 
             with open(file_path, "w", encoding="UTF-8") as file:
-                dump(data[key], file)
+                dump(asdict(d), file)
 
             file_paths.append(file_path)
 
