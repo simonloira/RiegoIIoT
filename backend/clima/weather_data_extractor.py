@@ -332,8 +332,8 @@ class GetAemetData():
             tuple[dict[str, Any], bool]: Información de Aemet y fallo guardando
             la información
         """
-        new_data = self.__fetch()
-        failure, message = self.__save(new_data)
+        new_data = self._fetch()
+        failure, message = self._save(new_data)
         print(message)
 
         # Solo lee de disco si falló, si no usa lo que ya tiene en RAM
@@ -342,7 +342,7 @@ class GetAemetData():
             if new_data.get(key) is not None:
                 final_output[key] = new_data[key]
             else:
-                cached = self.__read_file(f"aemet/{key}")
+                cached = self.__read_file(f"{key}.json")
                 final_output[key] = loads(cached[-1]) if cached else {}
         return final_output, failure
 
@@ -355,7 +355,7 @@ class GetAemetData():
         """
         final_output: dict[str, Any] = {}
         for key in self.links.keys():
-            cached = self.__read_file(f"aemet/{key}")
+            cached = self.__read_file(f"{key}.json")
             if cached:
                 final_output[key] = loads(cached[-1])
             else:
@@ -371,7 +371,7 @@ class GetAemetData():
         Returns:
             list[str] | None: Devuelve las líneas que leyó del archivo
         """
-        path_file = Path(settings.CLIMATE_DATA_PATH/"file_name.json")
+        path_file = Path(settings.CLIMATE_DATA_PATH/'aemet'/file_name)
 
         if not path.exists(path_file):
             return None
