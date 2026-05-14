@@ -11,11 +11,18 @@ import xmltodict
 from requests import exceptions, get
 
 from backend.basics.json_tools import load_json_file  #type: ignore
-from backend.clima.models import (  #type: ignore
+from backend.clima.models import (
     MAP_COMPLEX,
     MAP_SIMPLE,
+    AemetData,
+    AemetDayBase,
+    AemetMagnitud,
+    AemetPrediction,
+    AllMagnitudeVariants,
     APIState,
+    MagnitudData,
     MeteoGaliciaData,
+    RawAemetData,
 )
 from settings import settings  #type: ignore
 
@@ -456,11 +463,9 @@ class GetAemetData():
             print(f"Error llamando a aemet {error}")
             return None
 
-    def __select_data(self,
-                      weather_params:list[str],
-                      aemet_data:dict[str, Any]
-                      ) -> dict[str, str | list[dict[str, Any]]]:
-        """Se filtra la información cruda
+        """Se filtra la información cruda y se normaliza ya que Aemet
+           manda un caos como JSON y mypy está quejándose todo el rato
+           con los tipos de datos.
 
             Args:
                 weather_params (list[str]): Parámetros interesantes de cada
@@ -471,27 +476,85 @@ class GetAemetData():
                 dict[str, str | list[dict[str, Any]]]: Información filtrada de
                 cada tipo de dato (7d/hourly)
         """
-        root_keys = ["elaborado", "nombre"]
-        selected_data: dict[str, Any] = {}
-        day_dict:dict[str, Any] = {}
+        days:list[AemetDayBase] = []
+        root = aemet_data['root']
+        prediction:AemetPrediction = cast(AemetPrediction, root['prediccion'])
+        for day in prediction['dia']:
+            max_temp = None
+            min_temp = None
+            rain = day.get('precipitacion') or day.get('prob_precipitacion')
+            temp_data = day.get('temperatura')
 
-        for key in root_keys:
-            selected_data[key] = aemet_data["root"][key]
+            if isinstance(temp_data, dict):
+                max_temp = self._s(temp_data, 'maxima')
+                min_temp = self._s(temp_data, 'minima')
+                temp_data = self._s(temp_data, 'dato')
 
-        selected_data["dia"] = []
-        for num_dia in range(len(aemet_data["root"]["prediccion"]["dia"])):
-            day_dict = {}
-            day_data = aemet_data["root"]["prediccion"]["dia"][num_dia]
-            keys = day_data.keys()
-            for key in weather_params:
-                if key not in keys:
-                    continue
-                day_dict[key] = day_data[key]
+            day_data_str = cast(dict[str, str], day)
+            day_data = AemetDayBase(
+                date=cast(str, self._s(day_data_str, '@fecha')),
+                sunrise=cast(str, self._s(day_data_str, '@orto')),
+                sunset=cast(str, self._s(day_data_str, '@ocaso')),
+                uv_max=cast(str, self._s(day_data_str, 'uv_max')),
+                max_temp=max_temp,
+                min_temp=min_temp,
+                temperature=self._parse_magnitud(temp_data),
+                sky_status=self._parse_magnitud(day.get('estado_cielo')),
+                rain=self._parse_magnitud(rain),
+                therm_sense=self._parse_magnitud(day.get('sens_termica')),
+            )
 
-            selected_data["dia"].append(day_dict) #type:ignore
+            days.append(day_data)
 
-        selected_data["provincia"] = aemet_data["root"]["provincia"]
-        return selected_data
+        root_str = cast(dict[str, str], root)
+        data = AemetData(made_date=cast(str, self._s(root_str, 'elaborado')),
+                         village=cast(str, self._s(root_str, 'nombre')),
+                         province=cast(str, self._s(root_str, 'provincia')),
+                         days = days)
+        return data
+
+    def _parse_magnitud(self,
+                         magnitud_data:AllMagnitudeVariants
+                         ) -> list[AemetMagnitud]:
+
+        periods:list[AemetMagnitud] = []
+
+        if magnitud_data is None:
+            return periods # Lista vacía para evitar errores de iteración
+
+        items: list[MagnitudData]
+        # Si es un diccionario (caso 7 días), se normaliza a lista
+        if isinstance(magnitud_data, dict | str):
+            items = [magnitud_data]
+        else:
+            items = magnitud_data
+
+        for period in items:
+            if isinstance(period, str):
+                periods.append(AemetMagnitud(
+                    hour=None,
+                    value=period,
+                    description=None
+                ))
+                continue
+            # Si el periodo no tiene hora/periodo (es dato diario),
+            # se le pone "00-24"
+            hour = period.get('@periodo') or period.get('@hora') or "00-24"
+            description = period.get('@descripcion')
+
+            periods.append(AemetMagnitud(
+                hour=hour,
+                value=period.get('#text'),
+                description=None if description == "" else description
+            ))
+        return periods
+
+    def _s(self,
+           d:dict[str, str],
+           key:str,
+           default: str| None = None
+           ) -> str|None:
+        return d.get(key, default)
 
 
 class WeatherMain:
