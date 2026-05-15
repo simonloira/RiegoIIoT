@@ -1,9 +1,15 @@
 from dataclasses import dataclass
 from time import time
 
+type AllMagnitudeVariants = None | list[MagnitudData] | MagnitudData | str
+type RawAemetData = dict[str, dict[str, AemetPrediction | str]]
+type AemetPrediction = dict[str, list[DayData]]
+type DayData = dict[str, str | list[MagnitudData]]
+type MagnitudData = dict[str, str] | str
+
 @dataclass
 class MeteoGaliciaData:
-    timestamp: str 
+    timestamp: str
     station_id: int
     temp_15m: float = 0.0
     temp_dewpoint: float = 0.0
@@ -16,6 +22,34 @@ class MeteoGaliciaData:
     wind_gust_dir: float = 0.0
     solar_radiation: float = 0.0
     solar_hours: float = 0.0
+
+
+@dataclass
+class AemetMagnitud:
+    hour: str | None
+    value: str | None
+    description: str | None
+
+@dataclass
+class AemetDayBase:
+    date: str | None
+    sunrise: str | None
+    sunset:str | None
+    uv_max: str | None
+    max_temp:str | None
+    min_temp: str | None
+    temperature: list[AemetMagnitud]
+    sky_status: list[AemetMagnitud]
+    rain: list[AemetMagnitud]
+    therm_sense: list[AemetMagnitud] | None
+
+
+@dataclass
+class AemetData:
+    made_date: str
+    village: str
+    province:str
+    days: list[AemetDayBase]
 
 
 @dataclass
