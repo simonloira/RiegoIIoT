@@ -5,12 +5,12 @@ from json import dump, loads
 from os import path
 from pathlib import Path
 from time import sleep, time
-from typing import Any
+from typing import Any, cast
 
 import xmltodict
 from requests import exceptions, get
 
-from backend.basics.json_tools import load_json_file  #type: ignore
+from backend.basics.json_tools import load_json_file
 from backend.clima.models import (
     MAP_COMPLEX,
     MAP_SIMPLE,
@@ -24,13 +24,13 @@ from backend.clima.models import (
     MeteoGaliciaData,
     RawAemetData,
 )
-from settings import settings  #type: ignore
+from settings import settings
 
 
 class GetMeteogaliciaData():
     def __init__(self) -> None:
         self.meteogal_path = settings.CLIMATE_DATA_PATH / "meteogalicia"
-        self.idstation = self.__read_ids_stations(
+        self.idstation = self._read_ids_stations(
             self.meteogal_path / "IDStation.json"
         )
         self.headers = {
@@ -633,7 +633,7 @@ class WeatherMain:
         return full_data
 
     def __api_call_flow(self, api:str, api_state_path:str) -> tuple[Any, bool]:
-        """ Gestiona la llamada a la API.
+         """ Gestiona la llamada a la API.
 
             Args:
                 api (str): Nombre de la API
@@ -651,13 +651,26 @@ class WeatherMain:
         #Si se cumplió esta condición no se recibe nueva info climatológica
         if not self.api_state.can_call_or_retry(self.cache_ttl):
             print(f"{api} no puede llamar. Recuperando información guardada.")
-            return self.retrieve_save_map[api](), False
+            return self._read_last_data(api), False
 
         #Se recibe la info climatológica de la API
         api_data, fetch_failed = self.api_call_map[api]()
 
         return api_data, fetch_failed
 
+    def _read_last_data(self,
+                        api:str
+                        ) -> MeteoGaliciaData | dict[str,AemetData] | None:
+
+        data:MeteoGaliciaData | dict[str,AemetData] | None
+
+        print("Recuperando información guardada...")
+        data = self.retrieve_save_map[api]()
+        if data == {} or (data is None):
+            print("Error recuperando la información guardada.")
+            return data
+        print("Información recuperada.")
+        return data
     def __load_api_call_vars(self, file_path:Path) -> APIState:
         """Cargar estado de la API desde archivo"""
 
