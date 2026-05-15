@@ -605,9 +605,8 @@ class WeatherMain:
             api_state_path = self.apis_config[api]["api_state_path"]
 
             print(f"\nProbando a llamar a {api}")
-
-            api_data, fetch_failed = self.__api_call_flow(api=api,
-                                                          api_state_path=api_state_path)
+            api_data, api_called, fetch_failed = self.__api_call_flow(api=api,
+                                                                      api_state_path=api_state_path))
 
             if api_data is None:
                 continue
@@ -615,25 +614,28 @@ class WeatherMain:
             full_data[api] = api_data
 
             if fetch_failed:
-                print("\n\nFalló el fecth o info ya guardada")
-                print("Se guardará el tiempo para próximo intento: ",
-                      self.time_retry, api)
+                print("\n\nFalló el fetch, info ya guardada o error leyendo.")
+                print("Se guardará el tiempo para próximo intento:")
                 self.api_state.next_retry_time = time() + self.time_retry
-            else:
+
+            elif api_called:
                 #última llamada a la API = tiempo actuals
                 self.api_state.last_fetch_time = time()
                 self.api_state.next_retry_time = 0
 
             vars_path = Path(settings.CLIMATE_DATA_PATH/api_state_path)
-            self.__save_api_call_vars(api_state = self.api_state,
+            self._save_api_call_vars(api_state = self.api_state,
                                       file_path = vars_path)
             print(f"Obtenida la última información climatológica de {api}\n")
 
         print(full_data)
         return full_data
 
-    def __api_call_flow(self, api:str, api_state_path:str) -> tuple[Any, bool]:
-         """ Gestiona la llamada a la API.
+    def __api_call_flow(self,
+                       api:str,
+                       api_state_path:str
+                       ) -> tuple[Any, bool, bool]:
+        """ Gestiona el flujo de llamada a la API.
 
             Args:
                 api (str): Nombre de la API
@@ -647,16 +649,17 @@ class WeatherMain:
         """
         path = Path(settings.CLIMATE_DATA_PATH/api_state_path)
         self.api_state = self.__load_api_call_vars(path)
-
+        fetch_failed, api_called = False, False
         #Si se cumplió esta condición no se recibe nueva info climatológica
-        if not self.api_state.can_call_or_retry(self.cache_ttl):
-            print(f"{api} no puede llamar. Recuperando información guardada.")
-            return self._read_last_data(api), False
+        if self.api_state.can_call_or_retry(self.cache_ttl):
+            #Se recibe la info climatológica de la API
+            api_data, fetch_failed= self.api_call_map[api]()
+            api_called = True
+            return api_data, api_called, fetch_failed
 
-        #Se recibe la info climatológica de la API
-        api_data, fetch_failed = self.api_call_map[api]()
-
-        return api_data, fetch_failed
+        print(f"{api} no puede llamar.")
+        api_data = self._read_last_data(api)
+        return api_data, api_called, fetch_failed
 
     def _read_last_data(self,
                         api:str
