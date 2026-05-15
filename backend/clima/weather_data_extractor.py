@@ -160,7 +160,7 @@ class GetMeteogaliciaData():
         # Asignación de fecha y corrección a UTC_SPAIN
         ts = datetime.fromtimestamp(
                                     raw_data['date']/1000 + self.seconds_offset
-                                   ).strftime("%d/%m/%Y, %H:%M:%S")
+                                   ).isoformat()
 
         accum_rain = self._get_accumulated_rain(raw_data["id_estation"])
 
