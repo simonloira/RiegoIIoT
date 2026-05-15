@@ -316,9 +316,9 @@ class GetAemetData():
     def get_data(self) -> tuple[dict[str, AemetData], bool]:
         """Punto de entrada para llamar a Aemet.
 
-        Returns:
-            tuple[dict[str, Any], bool]: Información de Aemet y fallo guardando
-            la información
+         Returns:
+            tuple[dict[str, AemetData], bool]: Información de Aemet y fallo
+            guardando la información
         """
         new_data = self._fetch()
         failure, message = self._save(new_data)
@@ -373,7 +373,7 @@ class GetAemetData():
     def _save(self,
                data:dict[str, AemetData | None]
                ) -> tuple[bool, str]:
-        """Sobrescribe un archivo JSON para guardar la información de Aemet.
+        """Sobrescribe un archivo txt para guardar la información de Aemet.
 
         Args:
             data (dict[str, AemetData | None]): Información de Aemet
@@ -427,9 +427,7 @@ class GetAemetData():
             dato (7d o hourly). La información se obtiene parseando un xml.
 
             Args:
-                weather_params (list[str]): Parámetros interesantes de cada
-                tipo de dato. url (str): Enlace para conseguir el xml de
-                7d/hourly.
+                url (str): Enlace para conseguir el xml de 7d/hourly.
 
             Returns:
                 dict[str, str | list[dict[str, Any]]] | None: Información cruda
@@ -448,18 +446,16 @@ class GetAemetData():
     def _select_data(self,
                      aemet_data:RawAemetData
                     ) -> AemetData:
-        """Se filtra la información cruda y se normaliza ya que Aemet
-           manda un caos como JSON y mypy está quejándose todo el rato
-           con los tipos de datos.
+        """ Se filtra la información cruda y se normaliza ya que Aemet se
+            recibe desde Aemet un JSON  no normalizado, lo que dificulta el
+            filtrado y el tipado estático.
 
             Args:
-                weather_params (list[str]): Parámetros interesantes de cada
-                tipo de dato.aemet_data (dict[str, Any]): Información cruda del
-                xml de aemet parseado.
+                aemet_data (RawAemetData): Información cruda del xml de aemet
+                parseado.
 
             Returns:
-                dict[str, str | list[dict[str, Any]]]: Información filtrada de
-                cada tipo de dato (7d/hourly)
+                AemetData: Información filtrada de cada tipo de dato: 7d/hourly
         """
         days:list[AemetDayBase] = []
         root = aemet_data['root']
@@ -502,6 +498,23 @@ class GetAemetData():
     def _parse_magnitud(self,
                          magnitud_data:AllMagnitudeVariants
                          ) -> list[AemetMagnitud]:
+        """ Filtra la información de las magnitudes
+
+            Args:
+                magnitud_data (AllMagnitudeVariants): Este tipo contiene todos
+                las posibles estructuras que puede tener la información de cada
+                magnitud. Generalmente la información suele venir en una lista
+                de diccionarios de longitud igual a los periodos diarios, pero
+                en los datos de predicción de 7 días, a medida que se llega a
+                los últimos días de la predicción esta suele perder detalle,
+                por lo que suelen venir en simplemente diccionarios o incluso
+                strings (si el único periodo es de 00-24, aunque esto varía.
+                Ya que a veces, dependiendo de la magnitud, también viene en
+                diccionarios).
+
+            Returns:
+                list[AemetMagnitud]: Magnitud normalizada
+        """
 
         periods:list[AemetMagnitud] = []
 
@@ -516,9 +529,12 @@ class GetAemetData():
             items = magnitud_data
 
         for period in items:
+            # Viene sin la key "@periodo". Es decir, items es una lista de
+            # un sólo string viene con el valor que va a tener esa magnitud
+            # todo el día.
             if isinstance(period, str):
                 periods.append(AemetMagnitud(
-                    hour=None,
+                    hour="00-24",
                     value=period,
                     description=None
                 ))
