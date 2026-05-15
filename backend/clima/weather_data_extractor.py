@@ -65,8 +65,8 @@ class GetMeteogaliciaData():
                     - None: Si hubo algún fallo de lectura en la base de datos.
                     - bool: Fallo en la llamada a la API.
         """
-        data = self.__fetch_meteogalicia()
-        fetch_failed = self.__save_data(data)
+        data = self._fetch_meteogalicia()
+        fetch_failed = self._save_data(data)
         return (data if data is not None else self.get_last_saved(),
                 fetch_failed)
 
@@ -89,7 +89,7 @@ class GetMeteogaliciaData():
 
         return MeteoGaliciaData(**{k: row[k] for k in row.keys() if k != "id"})
 
-    def __save_data(self, data:MeteoGaliciaData|None) -> bool:
+    def _save_data(self, data:MeteoGaliciaData|None) -> bool:
         """ Guarda la información en una base de datos SQLite y devuelve si
             hubo algún error.
 
@@ -122,7 +122,7 @@ class GetMeteogaliciaData():
 
         return False
 
-    def __fetch_meteogalicia(self) -> MeteoGaliciaData | None:
+    def _fetch_meteogalicia(self) -> MeteoGaliciaData | None:
         """ Punto de entrada para la llamada a Meteogalicia
 
             Returns:
@@ -132,15 +132,15 @@ class GetMeteogaliciaData():
         """
         try:
             # Se obtienen los datos climatológicos:
-            raw_data: dict[str,Any] = self.__get_raw_data()
+            raw_data: dict[str,Any] = self._get_raw_data()
             #{"timestamp":"10 de Oct. de 2025, 21:47:21.", temp_15m:10.7, ...}
-            filtered_data  = self.filter_raw_data(raw_data)
+            filtered_data  = self._filter_raw_data(raw_data)
             return filtered_data
         except Exception as e:
             print(f"Error obteniendo la información de meteogalicia {e}")
             return None
 
-    def filter_raw_data(self, raw_data: dict[str, Any]) -> (MeteoGaliciaData |
+    def _filter_raw_data(self, raw_data: dict[str, Any]) -> (MeteoGaliciaData |
                                                             None):
         """ Filtra la información cruda que llega desde la API de meteogalicia
             y le asigna los valores a la dataclass MeteoGaliciaData
@@ -162,7 +162,7 @@ class GetMeteogaliciaData():
                                     raw_data['date']/1000 + self.seconds_offset
                                    ).strftime("%d/%m/%Y, %H:%M:%S")
 
-        accum_rain = self.__get_accumulated_rain(raw_data["id_estation"])
+        accum_rain = self._get_accumulated_rain(raw_data["id_estation"])
 
         data = MeteoGaliciaData(timestamp=ts,
                                 station_id=raw_data['station'],
@@ -183,7 +183,7 @@ class GetMeteogaliciaData():
                     setattr(data, attr, val)
         return data
 
-    def __get_accumulated_rain(self, id_station:str) -> float:
+    def _get_accumulated_rain(self, id_station:str) -> float:
             """ Se calcula la lluvia acumulada mediante los valores que llegan
                 de la gráfica diezminutal de lluvia de meteogalicia.
 
@@ -224,7 +224,7 @@ class GetMeteogaliciaData():
 
             return round(accumulated,2)
 
-    def __get_raw_data(self) -> dict[str, Any]:
+    def _get_raw_data(self) -> dict[str, Any]:
         """ Esta función coge los datos crudos de meteogalicia, tal cual como
             llegan. Además también tiene en cuenta que, a veces, puede ser que
             alguna estación no envíe datos. Entonces, se llama a la estación
@@ -291,7 +291,7 @@ class GetMeteogaliciaData():
 
         return most_updated_data
 
-    def __read_ids_stations(self, path:Path) -> dict[str, str]:
+    def _read_ids_stations(self, path:Path) -> dict[str, str]:
         """ Lee los ids de las estaciones. Están ordenadas en su archivo
             correspondiente de más póxima a más lejana.
 
@@ -595,8 +595,6 @@ class WeatherMain:
         if len(apis) == 0:
             raise ValueError("No se escogió una API correcta: [aemet, meteogalicia]")  # noqa: E501
 
-        #Determina el tipo de escritura del archivo
-        # (añadir texto o sobrescribirlo).
         full_data:dict[str, Any] = {}
         for api in apis:
             #Se recuperan los tiempos de llamada y de reintento de la API
@@ -605,11 +603,10 @@ class WeatherMain:
 
             api_state_path = self.apis_config[api]["api_state_path"]
             path = Path(settings.CLIMATE_DATA_PATH/api_state_path)
-            self.api_state = self.__load_api_call_vars(path)
+            self.api_state = self._load_api_call_vars(path)
 
             print(f"\nProbando a llamar a {api}")
-            api_data, api_called, fetch_failed = self.__api_call_flow(api=api,
-                                                                      api_state_path=api_state_path))
+            api_data, api_called, fetch_failed = self._api_call_flow(api=api)
 
             if api_data is None:
                 continue
@@ -631,27 +628,24 @@ class WeatherMain:
                                       file_path = vars_path)
             print(f"Obtenida la última información climatológica de {api}\n")
 
-        print(full_data)
         return full_data
 
-    def __api_call_flow(self,
+    def _api_call_flow(self,
                        api:str,
-                       api_state_path:str
                        ) -> tuple[Any, bool, bool]:
         """ Gestiona el flujo de llamada a la API.
 
-            Args:
-                api (str): Nombre de la API
-                api_state_path (str): Valores de reintento y del tiempo hasta
-                que se debe de volver a llamar a la API (TTL). Guardado en:
-                `backend/clima/datos_clima/CLIMATE_APIS_CONFIG.json`
+        Args:
+            api (str): Nombre de la API.
 
-            Returns:
-                tuple[Any, bool]: Devuelve la información de la API y si falló
-                la llamada para gestionar asignar el tiempo de reintento.
+        Returns:
+            tuple[Any, bool, bool]:
+                Datos obtenidos de la API o caché, una marca indicando si
+                la llamada fue realizada y otra indicando si la llamada falló.
+
+                Estas marcas permiten gestionar tiempos de reintento y
+                actualización de caché.
         """
-        path = Path(settings.CLIMATE_DATA_PATH/api_state_path)
-        self.api_state = self.__load_api_call_vars(path)
         fetch_failed, api_called = False, False
         #Si se cumplió esta condición no se recibe nueva info climatológica
         if self.api_state.can_call_or_retry(self.cache_ttl):
@@ -678,7 +672,7 @@ class WeatherMain:
         print("Información recuperada.")
         return data
 
-    def __load_api_call_vars(self, file_path:Path) -> APIState:
+    def _load_api_call_vars(self, file_path:Path) -> APIState:
         """Cargar estado de la API desde archivo"""
 
         api_vars = load_json_file(file_path)
@@ -687,7 +681,7 @@ class WeatherMain:
 
         return APIState(**api_vars)
 
-    def __save_api_call_vars(self, api_state:APIState, file_path:Path):
+    def _save_api_call_vars(self, api_state:APIState, file_path:Path) -> None:
         """Guardar estado de la API en archivo"""
 
         try:
@@ -701,4 +695,4 @@ class WeatherMain:
 
 if __name__ == "__main__":
     weather = WeatherMain()
-    weather.get_weather_data()
+    print(weather.get_weather_data())
