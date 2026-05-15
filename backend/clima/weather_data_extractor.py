@@ -602,7 +602,10 @@ class WeatherMain:
             #Se recuperan los tiempos de llamada y de reintento de la API
             self.time_retry = self.apis_config[api]["time_retry"]
             self.cache_ttl = self.apis_config[api]["cache_ttl"]
+
             api_state_path = self.apis_config[api]["api_state_path"]
+            path = Path(settings.CLIMATE_DATA_PATH/api_state_path)
+            self.api_state = self.__load_api_call_vars(path)
 
             print(f"\nProbando a llamar a {api}")
             api_data, api_called, fetch_failed = self.__api_call_flow(api=api,
@@ -674,6 +677,7 @@ class WeatherMain:
             return data
         print("Información recuperada.")
         return data
+
     def __load_api_call_vars(self, file_path:Path) -> APIState:
         """Cargar estado de la API desde archivo"""
 
