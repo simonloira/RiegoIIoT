@@ -3,35 +3,42 @@ from backend.history.activation_history import write_history, write_last_activat
 from backend.history.time_server import seconds_to_hour
 from asyncio import sleep, create_task, CancelledError
 from backend.basics.json_tools import load_json_file, save_json_file
-from server.settings import settings as PLCSettings
-
-
-def write_message_history(message:str, secs_act:int):
-    h, m, s = seconds_to_hour(secs_act)
-    message += f" {h:02d}h {m:02d}m {s:02d}s"
-    write_history("logo", message)
+from backend.PLC.models import (
+    ActivationTask,
+    Buffer,
+    LocalMemoriesStatus,
+    PLCAddress,
+    TagName,
+    VirtualMemories,
+    ZoneActivationInfo,
+    ZonesMemories,
+    PLCTimer,
+    BasesTime
+)
 
 
 class PLCController:
-    def __init__(self):
+    def __init__(self) -> None:
+        self.memorie_bytes_read = PLCSettings.MEMORIE_BYTES_READ
     #Carga las direcciones del PLC
         # BYTES_VM: TManuales zona y TAutomáticos zona: [wordTiempo(byte, byte+1), byteBaseTiempo(s/m/h)] 
         # | weekly_timer[bytedías_acivados, wordontime, wordofftime] | astro-clock[wordSunriseOffsetTime]
-        self.BYTES_VM = load_json_file(PLCSettings.VM_PATH) #Importa las memorias virtuales (contadores de zonas, días de activación...)
+        self.BYTES_VM = VirtualMemories(**load_json_file(PLCSettings.VM_PATH)) #Importa las memorias virtuales (contadores de zonas, días de activación...)
         # TIME_DATA: {"zona": t_activación (int)}
-        self.TIME_DATA = load_json_file(PLCSettings.TZ_PATH) #Tiempo de riego de las zonas en segundos
+        self.TIME_DATA:dict[TagName,int] = load_json_file(PLCSettings.TZ_PATH) #Tiempo de riego de las zonas en segundos
         # ADDRESS_SSM: {"zona": [byteIndex, bitIndex]}
         self.BYTES_SSM = load_json_file(PLCSettings.SSM_PATH) #Direcciones de memoria de los estados del sistema (StatusSystemMemories)
       #Direcciones de memoria de las zonas de riego
-        BYTES_ZM = load_json_file(PLCSettings.ZM_PATH) 
+        BYTES_ZM = ZonesMemories(**load_json_file(PLCSettings.ZM_PATH))
         ##Los siguientes datos siguen la estructura: #"zona":[Byte index, bool index]
-        self.direcciones_remoto_zonas = BYTES_ZM["DIRECCIONES_CONTROL_WEB"]
-        self.direcciones_act_local_plc = BYTES_ZM["DIRECCIONES_ACT_LOCAL_PLC"] #Control automático programado en PLC y control manual desde el PLC
-        self.direcciones_salida = BYTES_ZM["DIRECCIONES_SALIDAS"]
+        self.direcciones_remoto_zonas = BYTES_ZM.web_control
+        self.direcciones_act_local_plc = BYTES_ZM.local_act #Control automático programado en PLC y control manual desde el PLC
+        self.direcciones_salida = BYTES_ZM.outputs
 
         self.plc_client = rwConnectLogo.ReadWritePLC()
-        self.active_tasks = {}
-        self.active_memories = []
+        self.buffer_memories: None | Buffer #Se lee en la función plc_watchdog cada dos segundos y se usa con la función read_memorie
+        self.active_memories:list[PLCAddress] = []
+        self.active_tasks:dict[str, ActivationTask] = {}
 
     def obtener_estados(self):
         self.entradas = self.plc_client.leer_entradas()
