@@ -19,35 +19,34 @@ async def websocket_endpoint(websocket: WebSocket):
     connected_clients.add(websocket)
     try:
         await websocket.send_text(dumps({"timeZonesSecs": plc_manager.plc.TIME_DATA}))
-        logged_in = False
         data_send: dict
 
         while True:
-            if logged_in:
-                entradas_salidas_dirSalidas = [
-                    plc_manager.plc.obtener_estados(),
-                    plc_manager.plc.direcciones_salida, #Cambia la apariencia de los botones de las zonas | Salida activada: color verde. Desactivada: color gris.
-                ]  # Estados del PLC
 
-                data_send = {
-                    "logoConectado": plc_manager.plc.plc_client.is_connected(),
-                    "entradas-salidas-dirSalidas": entradas_salidas_dirSalidas,
-                    "last-activation": history["last-activation"],
-                }
-    
-                if send_history:
-                    print(f"Enviando history: {history}")
-                    send_history = False
-                    data_send.update({"history": history})
+            entradas_salidas_dirSalidas = [
+                plc_manager.plc.obtener_estados(),
+                plc_manager.plc.direcciones_salida, #Cambia la apariencia de los botones de las zonas | Salida activada: color verde. Desactivada: color gris.
+            ]  # Estados del PLC
 
-                # print(f"\nSending: {data_send}\n")
-                await websocket.send_text(dumps(data_send))
+            data_send = {
+                "logoConectado": plc_manager.plc.plc_client.is_connected(),
+                "entradas-salidas-dirSalidas": entradas_salidas_dirSalidas,
+                "last-activation": history["last-activation"],
+            }
+
+            if send_history:
+                print(f"Enviando history: {history}")
+                send_history = False
+                data_send.update({"history": history})
+
+            # print(f"\nSending: {data_send}\n")
+            await websocket.send_text(dumps(data_send))
 
             # Esperar mensaje del cliente
             try:
                 message = await asyncio.wait_for(websocket.receive_text(), timeout=0.5)
-                logged_in, data_send, info_time_zone = handle_client_messages(
-                    message, logged_in
+                data_send, info_time_zone = handle_client_messages(
+                    message
                 )
                 send_time_data = info_time_zone[0] #info_time_zone = [send_time, zones_time_data]
                 if send_time_data:
@@ -56,12 +55,12 @@ async def websocket_endpoint(websocket: WebSocket):
                 else:
                     print(f"\nTendría que enviar history: {data_send}")
                     await websocket.send_text(dumps(data_send))
-                
+
             except asyncio.TimeoutError:
                 pass
 
             await asyncio.sleep(1)
-            
+
     except WebSocketDisconnect:
         print("Cliente desconectado")
         send_history = write_history("remove_ip", f"{websocket.client[0]}")
@@ -81,45 +80,35 @@ async def broadcast(data:dict):
         connected_clients.remove(client)
 
 
-def handle_client_messages(client_message, logged: bool):
+def handle_client_messages(client_message):
     client_data = loads(client_message) #Mensajes recibidos desde el cliente
     cmd = client_data.get("comando", "") #Se coge la key "comando" en json recibido desde el cliente
     send_time = False #Permite enviar al cliente el tiempo de riego configurado
     print(f"Comando {cmd}")
     zones_time_data = plc_manager.plc.TIME_DATA
-    if logged:
-        if "act" in cmd: #Botón de activación de x zona en index.html
-            plc_manager.plc.ejecutar_comando(cmd, client_data.get("t_activacion", ""))
-            data_send = {"history": history}
 
-        elif cmd == "refresh_history": #Botón de refresco en history.html
-            data_send = {"history": history}
+    if "act" in cmd: #Botón de activación de x zona en index.html
+        plc_manager.plc.ejecutar_comando(cmd, client_data.get("t_activacion", ""))
+        data_send = {"history": history}
 
-        elif cmd == "refresh_weather": #Al actualizar la la página en index.html
-            print("Consiguiendo datos clima...")
-            weather_data = weather_manager.get_weather.read_last_saved_data(apis=["aemet", "meteogalicia"]) #weather_data = [True, [[aemet_7d, aemet_h], [meteogal]]] 
-            data_send = {"weatherData": weather_data}  #Envío [[aemet_7d, aemet_h], [meteogal]]
+    elif cmd == "refresh_history": #Botón de refresco en history.html
+        data_send = {"history": history}
 
-        elif "change_zone_time" in cmd:
-            activation_time = int(client_data.get("t_activacion", ""))
-            zone = cmd.split("-")[1]
+    elif cmd == "refresh_weather": #Al actualizar la la página en index.html
+        print("Consiguiendo datos clima...")
+        weather_data = weather_manager.get_weather.read_last_saved_data(apis=["aemet", "meteogalicia"]) #weather_data = [True, [[aemet_7d, aemet_h], [meteogal]]] 
+        data_send = {"weatherData": weather_data}  #Envío [[aemet_7d, aemet_h], [meteogal]]
 
-            plc_manager.plc.save_time([activation_time, 2], f"T.Remote-{zone}")
-            zones_time_data = plc_manager.plc.TIME_DATA
-            
-            data_send = {"timeZonesSecs": zones_time_data}
-            send_time = True
-    else:
-        client_token: str
-        client_token = ""
-        if cmd == "login": #Botón de entrar en login.html
-            client_token, logged = login.check_complete_login(data=client_data)
-        elif cmd == "check_signature": #Al actualizar login.html o index.html
-            client_token = client_data["token"]
-            logged = check_token.check_signature(client_data["token"])
-        data_send = {"loggedIn": logged, "token": client_token}
+    elif "change_zone_time" in cmd:
+        activation_time = int(client_data.get("t_activacion", ""))
+        zone = cmd.split("-")[1]
 
-    return logged, data_send, [send_time, zones_time_data]
+        plc_manager.plc.save_time([activation_time, 2], f"T.Remote-{zone}")
+        zones_time_data = plc_manager.plc.TIME_DATA
+
+        data_send = {"timeZonesSecs": zones_time_data}
+        send_time = True
+    return data_send, [send_time, zones_time_data]
 
 
 
