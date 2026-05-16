@@ -28,15 +28,14 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         data_send: dict
 
         while True:
-
-            entradas_salidas_dirSalidas = [
-                plc_manager.plc.obtener_estados(),
-                plc_manager.plc.direcciones_salida, #Cambia la apariencia de los botones de las zonas | Salida activada: color verde. Desactivada: color gris.
+            estadosSistema_salidas_dirSalidas = [
+                plc.obtener_estados(),
+                plc.outputs_addresses,  # Cambia la apariencia de los botones de las zonas | Salida activada: color verde. Desactivada: color gris.
             ]  # Estados del PLC
 
             data_send = {
                 "logoConectado": plc.plc_client.is_connected(),
-                "entradas-salidas-dirSalidas": entradas_salidas_dirSalidas,
+                "entradas-salidas-dirSalidas": estadosSistema_salidas_dirSalidas,
                 "last-activation": history.history["last-activation"],
             }
 
@@ -65,9 +64,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
     except WebSocketDisconnect:
         print("Cliente desconectado")
-        history_manager.history_handler.save_client_status(
-            "Se ha desconectado: ", websocket.client.host
-        )
+        history.save_client_status("Se ha desconectado: ", websocket.client.host)
 
 
 async def broadcast(data: dict) -> None:

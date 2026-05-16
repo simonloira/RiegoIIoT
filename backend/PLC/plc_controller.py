@@ -15,72 +15,64 @@ from backend.PLC.models import (
     PLCTimer,
     BasesTime
 )
+from settings import settings
 
 
 class PLCController:
     def __init__(self) -> None:
-        self.memorie_bytes_read = PLCSettings.MEMORIE_BYTES_READ
+        self.memorie_bytes_read = settings.MEMORIE_BYTES_READ
     #Carga las direcciones del PLC
         # BYTES_VM: TManuales zona y TAutomáticos zona: [wordTiempo(byte, byte+1), byteBaseTiempo(s/m/h)] 
         # | weekly_timer[bytedías_acivados, wordontime, wordofftime] | astro-clock[wordSunriseOffsetTime]
-        self.BYTES_VM = VirtualMemories(**load_json_file(PLCSettings.VM_PATH)) #Importa las memorias virtuales (contadores de zonas, días de activación...)
+        self.BYTES_VM = VirtualMemories(**load_json_file(settings.VM_PATH)) #Importa las memorias virtuales (contadores de zonas, días de activación...)
         # TIME_DATA: {"zona": t_activación (int)}
-        self.TIME_DATA:dict[TagName,int] = load_json_file(PLCSettings.TZ_PATH) #Tiempo de riego de las zonas en segundos
+        self.TIME_DATA:dict[TagName,int] = load_json_file(settings.TZ_PATH) #Tiempo de riego de las zonas en segundos
         # ADDRESS_SSM: {"zona": [byteIndex, bitIndex]}
-        self.BYTES_SSM = load_json_file(PLCSettings.SSM_PATH) #Direcciones de memoria de los estados del sistema (StatusSystemMemories)
+        self.BYTES_SSM:dict[str,PLCAddress] = load_json_file(settings.SSM_PATH) #Direcciones de memoria de los estados del sistema (StatusSystemMemories)
       #Direcciones de memoria de las zonas de riego
-        BYTES_ZM = ZonesMemories(**load_json_file(PLCSettings.ZM_PATH))
+        BYTES_ZM = ZonesMemories(**load_json_file(settings.ZM_PATH))
         ##Los siguientes datos siguen la estructura: #"zona":[Byte index, bool index]
-        self.direcciones_remoto_zonas = BYTES_ZM.web_control
-        self.direcciones_act_local_plc = BYTES_ZM.local_act #Control automático programado en PLC y control manual desde el PLC
-        self.direcciones_salida = BYTES_ZM.outputs
+        self.remote_addresses = BYTES_ZM.web_control
+        self.local_act_addresses = BYTES_ZM.local_act #Control automático programado en PLC y control manual desde el PLC
+        self.outputs_addresses = BYTES_ZM.outputs
 
         self.plc_client = rwConnectLogo.ReadWritePLC()
         self.buffer_memories: None | Buffer #Se lee en la función plc_watchdog cada dos segundos y se usa con la función read_memorie
         self.active_memories:list[PLCAddress] = []
         self.active_tasks:dict[str, ActivationTask] = {}
 
-    def obtener_estados(self):
-        self.entradas = self.plc_client.leer_entradas()
-        salidas = self.plc_client.leer_salidas()
-        self.check_well_level()
-        return [self.entradas, salidas]        
+    def get_status_memories(self) -> dict[str, bool|None] | None:
+        if self.buffer_memories is None:
+            return None
 
-    def ejecutar_comando(self, command:str, tiempo_activacion: int):
-        estado_memorias = self.plc_client.read_memories()
-        print(f"Estado real antes: {estado_memorias}")
-        
-        zona = command.split("-")[1] #(act/desAct)-zona por eso para coger la zona se separa desde el guión
-        direccion = self.direcciones_remoto_zonas[zona]
-        
-        #Podría hacer el código más plano poniendo arriba el "if command == "desAct"+zona" pero es más legible así
-        if command == "act-"+zona:
-            if estado_memorias[direccion[0]][direccion[1]]:
-                self.__cancel_task(name_task=f"off-{zona}")
-                self.plc_client.write_memories(self.direcciones_remoto_zonas[zona], False)
-                write_history("logo", f"La zona {zona} fue detenida manualmente.")
-                write_last_activation(f"La zona {zona} fue detenida manualmente.", ("XX", "XX", "XX"))
-                return 
-           # No se escribe directamente la salida del PLC, porque sino es más difícil de entender en el programa del LOGO el por qué se enciende desde la web
-            self.plc_client.write_memories(self.direcciones_remoto_zonas[zona], True)
-            write_message_history(f"Activada la zona {zona} durante:", tiempo_activacion)
-            
-            self.active_tasks[f"off-{zona}"] = create_task( #El server empieza a contar el tiempo de funcionamiento
-                self.shutdown_output_PLC(zone=zona, activation_time=tiempo_activacion)
-            ) 
+        status_memories:dict[str, bool|None] = {}
+        for memorie_name, memorie_address in self.BYTES_SSM.items():
+            status_memories[memorie_name] = self.plc_client.read_memorie(
+                memorie_address,
+                self.buffer_memories
+            )
+        return status_memories
 
-    def __cancel_task(self, name_task:str):
+    def obtener_estados(self) -> tuple[dict[str, bool|None] | None,
+                                                 list[bool] | None]:
+        # self.entradas = self.plc_client.leer_entradas() Esto no se debe
+        # mandar, esto se usa para mostrar el nivel del pozo en el frontend.
+        # Pero lo que tengo que hacer es en el LogoSoft crear unos estados de
+        # nivel del pozo y mandarlos al frontend y desde ahí que se muestre el
+        # nivel.
+        outputs = self.plc_client.leer_salidas()
+        status_memories = self.get_status_memories()
+        return status_memories, outputs
+
+    def __cancel_task(self, name_task:str) -> None:
         # Cancelar task si existe
         if name_task in self.active_tasks:
-            self.active_tasks[name_task].cancel()
-            del self.active_tasks[name_task]
-
-    def check_well_level(self):
-        if (self.entradas is None) or (self.entradas == []):
-            return
-        if not self.entradas[1]: #Si no se detecta señal del interruptor boya, se apagan todas las salidas del PLC
-            print("\nNivel del pozo bajo, se detienen todas las salidas")
-            self.stop_plc(off_only_zones=True)
+    # def check_well_level(self):
+    #     if (self.entradas is None) or (self.entradas == []):
+    #         return
+    #     if not self.entradas[1]: #Si no se detecta señal del interruptor boya, se apagan todas las salidas del PLC
+    #         print("\nNivel del pozo bajo, se detienen todas las salidas")
+    #         self.stop_plc(off_only_zones=True)
 
     def stop_plc(self, off_only_zones=False):
         """Stops all PLC outputs"""
