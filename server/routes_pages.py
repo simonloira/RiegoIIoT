@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from backend.login.secure_token import check
-import backend.clima.weather_manager as weather_manager
+import backend.history.history_manager as history_manager
 from backend.clima.climate_flags import current_sky_status, current_temperature
 from backend.login.login import check_login
 from backend.login.secure_token import check, gen_payload, generate_token
@@ -46,6 +46,13 @@ async def read_item(request: Request):
     )
 
 
+@router.get("/historial", response_class=HTMLResponse)
+async def render_history(request: Request)-> HTMLResponse:
+    return templates.TemplateResponse(
+        request=request, name="history.html"
+    )
+
+
 @router.post("/login")
 async def login_for_access_token(
     form_data:LoginRequest,
@@ -67,4 +74,18 @@ async def login_for_access_token(
                         max_age=settings.ACCESS_TOKEN_MINUTES*60)
 
     return MessageResponse(message="Se ha inicidado sesión")
+
+
+@router.get("/history-data")
+async def read_history_data(request: Request,
+                            valid_token: Annotated[bool, Depends(validate_token)]
+                            )-> HistoryResponse:
+    if valid_token:
+        return HistoryResponse(history=history_manager.history_handler.history)
+    raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No iniciaste sesión",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
 

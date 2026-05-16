@@ -22,7 +22,7 @@ class HistorySaver:
         print("History: ", self.history)
 
     def save_client_status(self, message: str, ip: str)-> None:
-        client_name = self.__get_id_ip(ip)
+        client_name = self._get_id_ip(ip)
         self.history["server"][self._encode_ip(ip)] = message + client_name
 
     def _save_last_activation(self, message: str, secs_act: int) -> None:
@@ -56,7 +56,7 @@ class HistorySaver:
 
         return f"{ip_parts[0]}.{ip_parts[1]}.{ip_parts[2]}.{ip_parts[3]}"
 
-    def __get_id_ip(self, ip:str) -> str:
+    def _get_id_ip(self, ip:str) -> str:
         if ip in self.IPS_IDS.keys():
             return f"{self.IPS_IDS[ip]}"
         return "DISPOSITIVO DESCONOCIDO"
