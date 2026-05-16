@@ -13,7 +13,9 @@ from backend.PLC import plc_manager
 
 router = APIRouter()
 check_token = check()
-history = history_manager.history_handler
+plc = plc_manager.get_plc()
+weather = weather_manager.get_weather_extractor()
+history = history_manager.get_history_saver()
 connected_clients:set[WebSocket] = set()  # Esto se usa para hacer broadcast del diccionario time_data y que llegue en tiempo real a todos los clientes
 
 @router.websocket("/ws")
@@ -22,7 +24,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     history.save_client_status("Se ha conectado: ", websocket.client.host)
     connected_clients.add(websocket)
     try:
-        await websocket.send_text(dumps({"timeZonesSecs": plc_manager.plc.TIME_DATA}))
+        await websocket.send_text(dumps({"timeZonesSecs": plc.TIME_DATA}))
         data_send: dict
 
         while True:
@@ -33,9 +35,9 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             ]  # Estados del PLC
 
             data_send = {
-                "logoConectado": plc_manager.plc.plc_client.is_connected(),
+                "logoConectado": plc.plc_client.is_connected(),
                 "entradas-salidas-dirSalidas": entradas_salidas_dirSalidas,
-                "last-activation": history_manager.history_handler.history["last-activation"],
+                "last-activation": history.history["last-activation"],
             }
 
             # print(f"\nSending: {data_send}\n")
