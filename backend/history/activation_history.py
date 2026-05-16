@@ -1,102 +1,65 @@
-import logging
-from time import time, sleep
-from backend.history.time_server import get_date
+from datetime import datetime
+from typing import Final
 
-history = {"server":{}, "logo":{}, "last-activation":()} #Ejemplo: {'server': {('19 de Sept. de 2025', '01:10:08'): 'Iniciando servidor...}, "logo:{}"}'
-ips_connected = []
-new_date = get_date()
+type category_history = dict[str, str | tuple[str, tuple[int, ...]]]
 
-#AppData/Local/Programs/Python/Python313/Lib/logging/__init__.py/Logger/info
-def write_last_activation(message:str, real_t_act:tuple):
-    global history
-    timestamp = new_date.get_current_date(time())
-    history["last-activation"] = (timestamp, message, real_t_act)
+class HistorySaver:
+    def __init__(self) -> None:
+        # Ejemplo:
+        # {'server': {'{ip_cliente}': 'Conectado {nombre_cliente}'},
+        # "logo":{'{datetime}': }
+        # }'
+        # TODO: Reemplazar almacenamiento en RAM por almacenamiento persistente
+        # con SQLite3
+        self.history: dict[str, category_history]
+        self.history = {"server": {}, "logo": {}, "last-activation":{}}
+        self.IPS_IDS: Final[dict[str, str]] = {} #IPs dispositivos conocidos
 
-def add_status(element:str, message:str, key=None):
-    global history #No es necesario meter esto ya que no da error sin esto pero, es más legible así
-    timestamp = new_date.get_current_date(time())
-    if key != None:
-        history[element][key] = [timestamp, message] #Para los dispositivos conectados y desconectados. La key sería la IP
-        return
-    history[element][timestamp] = message
-    sleep(1)
+    def save_output_status(self, msg:str, activation_time:int) -> None:
+        """Método único para evitar código duplicado"""
+        self._save_last_activation(msg, activation_time)
+        self._save_PLC_status(msg, activation_time)
+        print("History: ", self.history)
 
-def get_id_ip(ip):
-    if ip in IPS_IDS.keys():
-        return f"{IPS_IDS[ip]}"
-    return "DISPOSITIVO DESCONOCIDO"
+    def save_client_status(self, message: str, ip: str)-> None:
+        client_name = self.__get_id_ip(ip)
+        self.history["server"][self._encode_ip(ip)] = message + client_name
 
-def encode_ip(ip_client:str):
-    ip_show = ip_client.split(".")
-    ip_show[1] = "x" * len(ip_show[1])
-    ip_show[2] = "x" * len(ip_show[2])
-    ip_show[2] = "x" * len(ip_show[3])
-    ip_show = f"{ip_show[0]}.{ip_show[1]}.{ip_show[2]}.{ip_show[3]}"
-    return ip_show
+    def _save_last_activation(self, message: str, secs_act: int) -> None:
+        timestamp, real_t_act = self._build_value(secs_act)
+        last_activation = (message, real_t_act)
+        self.history["last-activation"][str(timestamp)] = last_activation
 
-def remove_ip(ip_client:str):
-    if ip_client in ips_connected:
-        del ips_connected[ips_connected.index(ip_client)]
-        ip_show = encode_ip(ip_client=ip_client)
-        add_status("server", 
-                   f"{get_id_ip(ip_client)} desconectado",
-                   ip_show)
+    def _save_PLC_status(self, message: str, secs_act: int) -> None:
+        timestamp, real_t_act = self._build_value(secs_act)
+        h, m, s = real_t_act
 
-def add_ip(ip_client:str):
-    if ip_client not in ips_connected:
-        ips_connected.append(ip_client)
-        ip_show = encode_ip(ip_client=ip_client)
-        add_status("server", 
-                   f"{get_id_ip(ip_client)} conectado", 
-                   ip_show)
+        message += f" {h:02d}h {m:02d}m {s:02d}s"
+        self.history["logo"][str(timestamp)] = message
 
-def check_message_server(server_logger:str):
-    AUTH_MESSAGES = {"INFO: Application startup complete.": "Iniciando servidor...",
-                     'INFO: Uvicorn running on': "¡Servidor iniciado correctamente!",
-                    }
-    for auth_message in AUTH_MESSAGES.keys():
-        if (auth_message == server_logger) or (auth_message in server_logger):
-            add_status("server", AUTH_MESSAGES[auth_message])
-    
-    
-def write_history(command:str, param:str): #Punto de llamada desde cualquier otro archivo
-    """Escribe información para el historial del servidor.
-        Commands:
-        'add_ip': Guarda la IP del cliente que se conecta y la formatea para guardarla en el historial (param=IP_cliente)
-        'remove_ip': Borra la IP del cliente que se desconecta y muestra un mensaje de dispositivo desconectado (param=IP_cliente)
-        'logo': Añade un estado de activación del LOGO (param=menesja personalizado)"""
-    
-    if command == "add_status": #Sólo se usa este comando cuando la función es llamada por el logger
-        print("add_status ", param)
-        check_message_server(param)
-    elif command == "add_ip":
-        print("Add_ip")
-        add_ip(param)
-    elif command == "remove_ip":
-        print("remove_ip")
-        remove_ip(param)
-    elif command == "logo":
-        print("logo")
-        add_status("logo", param)
-    else:
-        return False
-    return True
+    def _build_value(self, secs_act: int) -> tuple[datetime, tuple[int, ...]]:
+        date = datetime.now()
+        h, m, s = self._seconds_to_hour(secs_act)
+        return date, (h, m, s)
 
+    def _seconds_to_hour(self, total_seconds:int) -> tuple[int, int, int]:
+        hour = int(total_seconds // 3600)
+        minutes = int((total_seconds % 3600) // 60)
+        seconds = int(total_seconds % 60)
+        return hour, minutes, seconds
 
-class HistoryHandler(logging.Handler):
-    def emit(self, record):
-        msg = self.format(record)
-        write_history("add_status", msg)
-        
+    def _encode_ip(self, ip_client: str) -> str:
+        ip_parts = ip_client.split(".")
+        ip_parts[1] = "x" * len(ip_parts[1])
+        ip_parts[2] = "x" * len(ip_parts[2])
+        ip_parts[3] = "x" * len(ip_parts[3])
 
-def setup_logging():
-    history_handler = HistoryHandler()
-    history_handler.setLevel(logging.INFO)
-    formatter = logging.Formatter("%(levelname)s: %(message)s")
-    history_handler.setFormatter(formatter)
+        return f"{ip_parts[0]}.{ip_parts[1]}.{ip_parts[2]}.{ip_parts[3]}"
 
-    logging.getLogger("uvicorn").addHandler(history_handler)
-    # logging.getLogger("uvicorn.error").addHandler(history_handler)
-    logging.getLogger("uvicorn.access").addHandler(history_handler)
-    logging.getLogger().addHandler(history_handler)
+    def __get_id_ip(self, ip:str) -> str:
+        if ip in self.IPS_IDS.keys():
+            return f"{self.IPS_IDS[ip]}"
+        return "DISPOSITIVO DESCONOCIDO"
 
+        # history[element][key] = [timestamp, message] #Para los dispositivos
+        # conectados y desconectados. La key sería la IP
