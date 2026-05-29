@@ -1,19 +1,22 @@
-from  snap7.client import Client
-from snap7.util import get_bool, set_bool
+from snap7.client import Client
 from snap7.type import Areas, Parameter
-from server.settings import settings
-from asyncio import sleep
+from snap7.util import get_bool, set_bool
+
+from backend.PLC.models import Buffer, MemoryBlock, PLCAddress
+from settings import settings
 
 
 class PLCConnection:
-    def __init__(self):
+    def __init__(self) -> None:
         self.client = Client()
         self.connect_PLC()
 
-    def connect_PLC(self):
+    def connect_PLC(self) -> None:
         try:
             print("Conectándose al LOGO...")
-            self.client.set_connection_params(settings.IP_LOGO, settings.LOCAL_TSAP, settings.REMOTE_TSAP)
+            self.client.set_connection_params(settings.IP_LOGO,
+                                              settings.LOCAL_TSAP, 
+                                              settings.REMOTE_TSAP)
             self.client.set_param(Parameter.RecvTimeout, 4000)
             self.client.set_param(Parameter.SendTimeout, 4000)
             self.client.connect(settings.IP_LOGO, 0, 1)
@@ -21,10 +24,10 @@ class PLCConnection:
         except Exception as e:
             print("¡IMPOSIBLE CONECTAR AL LOGO!:", e)
 
-    def is_connected(self):
+    def is_connected(self) -> bool:
         return self.client.get_connected()
 
-    def plc_reconnection(self): # Hacer la función asíncrona
+    def plc_reconnection(self) -> None: # Hacer la función asíncrona
             try:
                 if not self.is_connected():
                     self.connect_PLC()       
@@ -32,38 +35,42 @@ class PLCConnection:
                 print(f"Error durante el proceso de reconexión: {e}")
 
 class ReadWritePLC(PLCConnection):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.memorie_bytes_read = settings.MEMORIE_BYTES_READ
-    
-    def __error(self):
+
+    def __error(self) -> None:
         self.client.disconnect()
         self.plc_reconnection()
 
     # Funciones de lectura/escritura básicas
-    def leer_entradas(self):
+    def read_inputs(self) -> None | list[bool]:
         try:
             if not self.is_connected():
-                return []
-            
+                return None
+
             data = self.client.read_area(Areas.PE, 0, 0, 1)
+
             return [get_bool(data, 0, i) for i in range(8)]
+
         except Exception as e:
             print(f"Error leyendo las entradas: {e}")
             self.__error()
+            return None
 
-    def leer_salidas(self):
+    def read_outputs(self) -> None | list[bool]:
         try:
             if not self.is_connected():
-                return []
-            
+                return None
+
             data = self.client.read_area(Areas.PA, 0, 0, 1)
+
             return [get_bool(data, 0, i) for i in range(4)]
+
         except Exception as e:
             print(f"Error leyendo las salidas: {e}") 
             self.__error()
-   
-    def write_memories(self, memorie_adress:list, state_to_write:bool, show_status = True):
+            return None
+
         try:
             if not self.is_connected():
                 return None
