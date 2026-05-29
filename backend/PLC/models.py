@@ -1,10 +1,10 @@
 
 from asyncio import Task
 from dataclasses import dataclass
-from typing import Literal, Annotated
+from enum import Enum
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, RootModel
-from enum import Enum
 
 type PLCVirtualMemory = dict[TagName, PLCVariableAddress]
 type PLCVariableAddress = Annotated[
@@ -51,14 +51,6 @@ class WeeklyTimer(BaseModel):
 class AstroClock(BaseModel):
     type: Literal['astroclock']
     sunrise_offset:MemoryBlock
-
-
-@dataclass(slots=True)
-class ZoneActivationInfo:
-    event:Literal['start', 'manual_stop']
-    msg: str
-    duration: int
-    zone: str
 
 
 @dataclass(slots=True)
