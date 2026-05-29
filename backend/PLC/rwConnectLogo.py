@@ -95,21 +95,22 @@ class ReadWritePLC(PLCConnection):
             self.__error()
             return None
 
-    def read_memory(self, 
-                     memorie_adress:PLCAddress,
-                     buffer:Buffer
-                     ) -> None | bool:
+    def read_memory(self,
+                    memorie_adress:PLCAddress,
+                    buffer:Buffer
+                    ) -> None | bool:
         try:
             if not self.is_connected():
                 return None
 
-            BIndex = memorie_adress[0]
-            bIndex = memorie_adress[1]
+            B_index = memorie_adress[0]
+            b_index = memorie_adress[1]
 
             if settings.DEBUGGING:
-                print(f"Extrayendo M{BIndex * 8 + bIndex + 1} del buffer de memorias.")
+                memory_number = B_index * 8 + b_index + 1
+                print(f"Extrayendo M{memory_number} del buffer de memorias.")
 
-            return buffer[BIndex][bIndex]
+            return buffer[B_index][b_index]
 
         except Exception as e:
             print(f"Error leyendo memoria: {e}")
@@ -117,17 +118,21 @@ class ReadWritePLC(PLCConnection):
             return None
 
     def read_buffer_memories(self,
-                             bytes_to_read:int=settings.MEMORIE_BYTES_READ
+                             B_read:int=settings.MEMORIE_BYTES_READ
                              ) -> None | Buffer:
         try:
             if not self.is_connected():
                 return None
 
-            memories_state = [[False for _ in range(8)] for _ in range(bytes_to_read)]
-            data = self.client.read_area(Areas.MK, 0, 0, bytes_to_read)
+            buff_byte: list[bool]
+            memories_state = [[False for _ in range(8)] for _ in range(B_read)]
+            data = self.client.read_area(Areas.MK, 0, 0, B_read)
 
-            for byteIndex in range(bytes_to_read):
-                memories_state[byteIndex] = [get_bool(data,  byteIndex, bitIndex) for bitIndex in range(8)]
+            for byteIndex in range(B_read):
+                buff_byte = []
+                for bitIndex in range(8):
+                    buff_byte.append(get_bool(data, byteIndex, bitIndex))
+                memories_state[byteIndex] = []
 
             return memories_state
 
@@ -148,27 +153,27 @@ class ReadWritePLC(PLCConnection):
 
         return 1 #Byte
 
-    def write_VM(self, values:list[int], data_zone:dict):
-        """Para escribir el tiempo directamente en el LOGO! simplemente es coger la dirección del DB donde está almacenado el dato de edición 
-        de tiempo de cada zona y se convierte el valor en segundos a hexadecimal y se escribe el valor. Hay que tener en cuenta la conversión
-        de little endian a big endian, ya que el PLC trabaja en big endian."""
+    def write_VM(self, values:tuple[int, int],
+                 memories:tuple[MemoryBlock, MemoryBlock]
+                 ) -> None:
 
         if not self.is_connected():
             return None
 
-        values = self.check_overflow(values)
-        bytes_index = list(data_zone.keys()) #{"zona": {"byte": "tipoDato"}}
-        
-        if len(values) != len(bytes_index):
-            print(f"Tiene que haber un valor para cada byte\nNº Bytes: {len(bytes_index)} | Nº Valores: {len(values)}")
-            return 
+        if len(values) != len(memories):
+            print("Tiene que haber un valor para cada variable")
+            print(f"Nº Variables: {len(memories)} | Nº Valores: {len(values)}")
+            return None
 
         for i in range(len(values)):
-            byte = int(bytes_index[i])
+            data_zone = memories[i]
+            byte = data_zone.memory_index
             value = values[i]
-            
-            data_length = self.get_length_data(data_zone, byte)
-            self.client.write_area(Areas.DB,0,byte,(value).to_bytes(data_length, "big")) #EDIT: No, no se está usando little endian, al final es big. ||||| Igual sí que estoy usando aquí little endian y no me estoy enterando pero bueno, el tema es que va
-            
-            # client.write_area(Areas.DB,0,4,b'\x02') 
+
+            data_length = self.get_length_data(data_zone)
+            self.client.write_area(Areas.DB,0,byte,(value).to_bytes(data_length,
+                                                                    "big"))
+
+            # client.write_area(Areas.DB,0,4,b'\x02')
         return None
+

@@ -37,7 +37,7 @@ class PLCController:
         self.outputs_addresses = BYTES_ZM.outputs
 
         self.plc_client = rwConnectLogo.ReadWritePLC()
-        self.buffer_memories: None | Buffer #Se lee en la función plc_watchdog cada dos segundos y se usa con la función read_memorie
+        self.buffer_memories: None | Buffer #Se lee en la función plc_watchdog cada dos segundos y se usa con la función read_memory
         self.active_memories:list[PLCAddress] = []
         self.active_tasks:dict[str, ActivationTask] = {}
 
@@ -95,36 +95,35 @@ class PLCController:
             #Desactivar M18 y M19 (lloverá, servidor conectado respectivamente)
             self.plc_client.write_memory(self.BYTES_SSM["Lluvia"], False)
             self.plc_client.write_memory((2,2), False)
-    
-    def write_raining_memorie(self, rain): #Se llama en tasks.py después de obtener la información climatológica
-        #Memoria: M18(M2.1)
-        self.plc_client.write_memories(self.BYTES_SSM["Lluvia"], rain)
-    
-    def save_time(self, value:list, memory_name:str):
-        self.plc_client.write_VM(value, self.BYTES_VM[memory_name])
-        zone = memory_name.split("-")[1]
-        self.TIME_DATA[zone] = value[0]
-        save_json_file("timeData", PLCSettings.TZ_PATH, self.TIME_DATA)
 
-    async def plc_watchdog(self):
-        while True:
-            memories_status = self.plc_client.read_memories() 
-            if memories_status is None:
-                await sleep(5) #Espero un poco más por si hay algún problema de comunicación que no trate de leer las memorias contantemente.
-                continue
-            for name, address in self.direcciones_act_local_plc.items():
-                if address not in self.active_memories:
-                    if memories_status[address[0]][address[1]]:
-                        self.active_memories.append(address)
-                        message = f"Activado desde el PLC: {name} "
-                        write_history("logo", message)
-                
-                if address in self.active_memories:
-                    if not memories_status[address[0]][address[1]]:
-                        del self.active_memories[self.active_memories.index(address)]
-            await sleep(2) #Cada 2 segundos leo el estado de las memorias
-    
-    async def shutdown_output_PLC(self, zone:str, activation_time:int):
+    def write_raining_memorie(self, rain:bool) -> None: #Se llama en tasks.py después de obtener la información climatológica
+        #Memoria: M18(M2.1)
+        self.plc_client.write_memory(self.BYTES_SSM["Lluvia"], rain)
+
+    def save_time(self, memory_name:TagName,
+                  values_w:tuple[int,int]
+                  )-> None:
+        """
+        Para escribir el tiempo directamente en el LOGO! simplemente es coger la dirección del DB donde está almacenado el dato de edición 
+        de tiempo de cada zona y se convierte el valor en segundos a hexadecimal. Se escribe el valor y listo.
+        values: (tiempo en segundos, base de tiempo)
+        """
+        timer = self.BYTES_VM.root[memory_name]
+        assert isinstance(timer, PLCTimer)
+
+        self.plc_client.write_VM(self.check_overflow(values_w),
+                                 (timer.time, timer.timebase))
+        zone = memory_name.split("-")[1]
+        self.TIME_DATA[zone] = values_w[0]
+        save_json_file("timeData", settings.TZ_PATH, self.TIME_DATA)
+
+    def check_overflow(self,
+                       values:tuple[int, int]
+                       ) -> tuple[int, int]:
+        if values[0] > (99 * 60 + 59): #99 minutos + 59 segundos es el límite que tiene el PLC para la base minutos
+            return (int(values[0] / 60), BasesTime.HOUR.value) #Se escribe el tiempo en horas
+
+        return values[0], values[1]
         try:
             await sleep(activation_time)
             self.plc_client.write_memories(self.direcciones_remoto_zonas[zone], False)
