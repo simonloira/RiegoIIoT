@@ -47,7 +47,7 @@ class PLCController:
 
         status_memories:dict[str, bool|None] = {}
         for memorie_name, memorie_address in self.BYTES_SSM.items():
-            status_memories[memorie_name] = self.plc_client.read_memorie(
+            status_memories[memorie_name] = self.plc_client.read_memory(
                 memorie_address,
                 self.buffer_memories
             )
@@ -74,26 +74,27 @@ class PLCController:
     #         print("\nNivel del pozo bajo, se detienen todas las salidas")
     #         self.stop_plc(off_only_zones=True)
 
-    def stop_plc(self, off_only_zones=False):
+    def stop_plc(self, off_only_zones:bool=False) -> None:
         """Stops all PLC outputs"""
         print("Deteniendo todo")
-        
-        estado_memorias = self.plc_client.read_memories()
-        if estado_memorias is None:
+
+        memories_status = self.plc_client.read_buffer_memories()
+        if memories_status is None:
             print("Error leyendo memorias = None")
             return
-        
-        for zona, direccion in self.direcciones_remoto_zonas.items():
-            if estado_memorias[direccion[0]][direccion[1]]:
+
+        for zona, direccion in self.remote_addresses.items():
+            if self.plc_client.read_memory(direccion, memories_status):
                 self.__cancel_task(name_task=zona)
-                self.plc_client.write_memories(self.direcciones_remoto_zonas[zona], False)
-        
-        print("Estado salidas: ", self.plc_client.leer_salidas())
+                self.plc_client.write_memory(self.remote_addresses[zona],
+                                              False)
+
+        print("Estado salidas: ", self.plc_client.read_outputs())
 
         if not off_only_zones:
             #Desactivar M18 y M19 (lloverá, servidor conectado respectivamente)
-            self.plc_client.write_memories(self.BYTES_SSM["Lluvia"], False)
-            self.plc_client.write_memories([2,2], False)
+            self.plc_client.write_memory(self.BYTES_SSM["Lluvia"], False)
+            self.plc_client.write_memory((2,2), False)
     
     def write_raining_memorie(self, rain): #Se llama en tasks.py después de obtener la información climatológica
         #Memoria: M18(M2.1)

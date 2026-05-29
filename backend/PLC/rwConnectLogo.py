@@ -71,51 +71,82 @@ class ReadWritePLC(PLCConnection):
             self.__error()
             return None
 
+    def write_memory(self,
+                      memorie_adress:PLCAddress,
+                      state_to_write:bool) -> None:
+
+        if not self.is_connected():
+            return None
+
+        B_index = memorie_adress[0]
+        b_index = memorie_adress[1]
+        memory_number = B_index * 8 + b_index + 1
+
+        try:
+            data = self.client.read_area(Areas.MK, 0, B_index, 1)
+            set_bool(data, 0, b_index, state_to_write)
+            self.client.write_area(Areas.MK, 0, B_index, data)
+
+            if settings.DEBUGGING:
+                print(f"Escrito '{state_to_write}' en M", memory_number)
+
+        except Exception as e:
+            print(f"Error escribiendo memoria M{memory_number}: {e}")
+            self.__error()
+            return None
+
+    def read_memory(self, 
+                     memorie_adress:PLCAddress,
+                     buffer:Buffer
+                     ) -> None | bool:
         try:
             if not self.is_connected():
                 return None
-            
+
             BIndex = memorie_adress[0]
             bIndex = memorie_adress[1]
-            data = self.client.read_area(Areas.MK, 0, 0, self.memorie_bytes_read)
-            set_bool(data, BIndex, bIndex, state_to_write)
-            self.client.write_area(Areas.MK, 0, 0, data)
-            
-            if show_status:
-                print(f"Escrito '{state_to_write}' en M", BIndex*8 + bIndex+1)
+
+            if settings.DEBUGGING:
+                print(f"Extrayendo M{BIndex * 8 + bIndex + 1} del buffer de memorias.")
+
+            return buffer[BIndex][bIndex]
+
         except Exception as e:
-            print(f"Error leyendo/escribiendo memorias: {e}")
+            print(f"Error leyendo memoria: {e}")
             self.__error()
-    
-    def read_memories(self):
+            return None
+
+    def read_buffer_memories(self,
+                             bytes_to_read:int=settings.MEMORIE_BYTES_READ
+                             ) -> None | Buffer:
         try:
             if not self.is_connected():
                 return None
-            
-            memories_state = [[False for _ in range(8)] for _ in range(self.memorie_bytes_read)]
-            data = self.client.read_area(Areas.MK, 0, 0, self.memorie_bytes_read)
-            for byteIndex in range(self.memorie_bytes_read):
+
+            memories_state = [[False for _ in range(8)] for _ in range(bytes_to_read)]
+            data = self.client.read_area(Areas.MK, 0, 0, bytes_to_read)
+
+            for byteIndex in range(bytes_to_read):
                 memories_state[byteIndex] = [get_bool(data,  byteIndex, bitIndex) for bitIndex in range(8)]
+
             return memories_state
+
         except Exception as e:
             print(f"Error leyendo memorias: {e}")
             self.__error()
+            return None
 
-    #  Funciones de bajo nivel   
-    def get_length_data(self, data_zone:dict, byte_index:int):
-        data_type = data_zone[str(byte_index)]
 
-        if data_type == "word":
+#   --------------FUNCIONES DE BAJO NIVEL--------------#
+
+    def get_length_data(self, memory:MemoryBlock) -> int:
+        if memory.length == "word":
             return 2
-        if data_type == "dword":
+
+        if memory.length == "dword":
             return 4
-        
-        return 1
-    
-    def check_overflow(self, values:list):
-        if values[0] > (99 * 60 + 59): #99 minutos + 59 segundos es el límite que tiene el PLC para la base minutos
-            return [int(values[0] / 60), 3] #Se escribe el tiempo en horas
-        return values
+
+        return 1 #Byte
 
     def write_VM(self, values:list[int], data_zone:dict):
         """Para escribir el tiempo directamente en el LOGO! simplemente es coger la dirección del DB donde está almacenado el dato de edición 
