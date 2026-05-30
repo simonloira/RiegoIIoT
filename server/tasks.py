@@ -83,31 +83,26 @@ async def plc_reconnection():
         await asyncio.sleep(4)
 
 
-async def plc_watchdog(plc: PLCControl) -> None:
-    """
-    Lee el estado de las marcas de memoria cada 2 segundos. Cuando es comparado el 
-    estado actual de la memoria con el último estado de la memoria, puedo saber qué
-    modo fue activado.
+async def plc_watchdog(plc: PLCControl, history_handler: HistorySave) -> None:
+    """Lee las marcas de memoria que tuvieron un flanco de bajada o de subida,
+    con su nombre descriptivo. Se iteran y se guarda su estado en el historial.
 
-    ¿Por qué marcas de memorias y no salidas físicas? Porque las salidas físicas pueden
-    ser activadas de cualquier manera (remoto, manual local o automáticamente en local)
-    pero cada modo y salida tiene una marca que directamente activa su electroválvula
-    correspondiente.
+    Args:
+        plc (PLCControl): Variable que contiene el objeto PLCControl
+         inicializado.
+        history_handler (HistorySave): Variable que permite guardar el
+         historial inicializado.
     """
-
     while True:
-            memories_status = plc.read_memories() 
-            if memories_status is None:
-                await sleep(5) #Espero un poco más por si hay algún problema de comunicación que no trate de leer las memorias contantemente.
-                continue
-            for name, address in plc.direcciones_act_local_plc.items():
-                if address not in plc.active_memories:
-                    if memories_status[address[0]][address[1]]:
-                        plc.active_memories.append(address)
-                        message = f"Activado desde el PLC: {name} "
-                        write_history("logo", message)
-
-                if address in plc.active_memories:
-                    if not memories_status[address[0]][address[1]]:
-                        del plc.active_memories[plc.active_memories.index(address)]
-            await sleep(2) #Cada 2 segundos leo el estado de las memorias
+        result = plc.get_local_active_memories()
+        act_flags = result.act_flags
+        deact_flags = result.deact_flags
+        # Realmente sólo devuelve None si el buffer de memorias es None.
+        # Por lo tanto si act_flags es None deact_flags también. Lo que
+        # pasa es que pongo OR en vez de AND porque sino mypy se piensa que
+        # alguno de los dos puede ser None
+        if act_flags is None or deact_flags is None:
+            # Espero un poco más por si hay algún problema de comunicación que
+            # no trate de leer las memorias contantemente.
+            await asyncio.sleep(5)
+            continue
