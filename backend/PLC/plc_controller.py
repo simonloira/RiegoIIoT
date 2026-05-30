@@ -65,7 +65,13 @@ class PLCController:
     def zone_activation(
         self, zone: str, activation_time: int
     ) -> ZoneActivation | None:
+        if self.buffer_memories is None:
+            return None
 
+        if not self.plc_client.read_memory(
+            self.BYTES_SSM["SistemaEstable"], self.buffer_memories
+        ):
+            return None
     def __cancel_task(self, name_task: str) -> None:
         # Cancelar task si existe
         if name_task in self.active_tasks:
