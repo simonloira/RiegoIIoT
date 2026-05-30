@@ -39,12 +39,6 @@ class HistorySaver:
 
         self.history.users[ip] = info
 
-    def _seconds_to_hour(self, total_seconds:int) -> tuple[int, int, int]:
-        hour = int(total_seconds // 3600)
-        minutes = int((total_seconds % 3600) // 60)
-        seconds = int(total_seconds % 60)
-        return hour, minutes, seconds
-
     def _encode_ip(self, ip_client: str) -> str:
         """
         Ya no sirve. Al principio sí porque se hacía un tunneling
