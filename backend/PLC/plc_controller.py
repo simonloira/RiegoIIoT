@@ -62,16 +62,9 @@ class PLCController:
             )
         return status_memories
 
-    def obtener_estados(self) -> tuple[dict[str, bool|None] | None,
-                                                 list[bool] | None]:
-        # self.entradas = self.plc_client.leer_entradas() Esto no se debe
-        # mandar, esto se usa para mostrar el nivel del pozo en el frontend.
-        # Pero lo que tengo que hacer es en el LogoSoft crear unos estados de
-        # nivel del pozo y mandarlos al frontend y desde ahí que se muestre el
-        # nivel.
-        outputs = self.plc_client.leer_salidas()
-        status_memories = self.get_status_memories()
-        return status_memories, outputs
+    def zone_activation(
+        self, zone: str, activation_time: int
+    ) -> ZoneActivation | None:
 
     def __cancel_task(self, name_task: str) -> None:
         # Cancelar task si existe
