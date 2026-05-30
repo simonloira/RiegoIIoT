@@ -106,3 +106,23 @@ async def plc_watchdog(plc: PLCControl, history_handler: HistorySave) -> None:
             # no trate de leer las memorias contantemente.
             await asyncio.sleep(5)
             continue
+
+        for flag in act_flags:
+            history_handler.save_output_status(
+                info=ZoneActivation(
+                    event="local_start",
+                    timestamp=int(time()),
+                    zone=flag
+                )
+            )
+
+        for flag in deact_flags:
+            history_handler.save_output_status(
+                info=ZoneActivation(
+                    event="local_stop",
+                    timestamp=int(time()),
+                    zone=flag
+                )
+            )
+
+        await asyncio.sleep(2)  # Cada 2 segundos leo el estado de las memorias
