@@ -82,3 +82,32 @@ async def plc_reconnection():
         plc_manager.plc.plc_client.plc_reconnection()
         await asyncio.sleep(4)
 
+
+async def plc_watchdog(plc: PLCControl) -> None:
+    """
+    Lee el estado de las marcas de memoria cada 2 segundos. Cuando es comparado el 
+    estado actual de la memoria con el último estado de la memoria, puedo saber qué
+    modo fue activado.
+
+    ¿Por qué marcas de memorias y no salidas físicas? Porque las salidas físicas pueden
+    ser activadas de cualquier manera (remoto, manual local o automáticamente en local)
+    pero cada modo y salida tiene una marca que directamente activa su electroválvula
+    correspondiente.
+    """
+
+    while True:
+            memories_status = plc.read_memories() 
+            if memories_status is None:
+                await sleep(5) #Espero un poco más por si hay algún problema de comunicación que no trate de leer las memorias contantemente.
+                continue
+            for name, address in plc.direcciones_act_local_plc.items():
+                if address not in plc.active_memories:
+                    if memories_status[address[0]][address[1]]:
+                        plc.active_memories.append(address)
+                        message = f"Activado desde el PLC: {name} "
+                        write_history("logo", message)
+
+                if address in plc.active_memories:
+                    if not memories_status[address[0]][address[1]]:
+                        del plc.active_memories[plc.active_memories.index(address)]
+            await sleep(2) #Cada 2 segundos leo el estado de las memorias
