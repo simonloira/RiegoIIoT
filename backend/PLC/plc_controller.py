@@ -72,6 +72,15 @@ class PLCController:
             self.BYTES_SSM["SistemaEstable"], self.buffer_memories
         ):
             return None
+
+        address = self.remote_addresses[zone]
+
+        if self.plc_client.read_memory(address, self.buffer_memories):
+            self.__cancel_task(name_task=f"off-{zone}")
+
+            self.plc_client.write_memory(self.remote_addresses[zone], False)
+
+            duration = time() - self.active_tasks[f"off-{zone}"].start_time
     def __cancel_task(self, name_task: str) -> None:
         # Cancelar task si existe
         if name_task in self.active_tasks:
