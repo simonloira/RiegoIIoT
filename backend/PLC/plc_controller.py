@@ -81,6 +81,35 @@ class PLCController:
             self.plc_client.write_memory(self.remote_addresses[zone], False)
 
             duration = time() - self.active_tasks[f"off-{zone}"].start_time
+            return ZoneActivation(
+                event="manual_stop",
+                timestamp=int(time()),
+                duration=int(duration),
+                zone=zone,
+            )
+
+        # No se escribe directamente la salida del PLC, porque sino es más
+        # difícil de entender en el programa del LOGO por qué se enciende
+        # desde la web
+        self.plc_client.write_memory(self.remote_addresses[zone], True)
+
+        task = create_task(
+            # Se empieza a contar el tiempo de funcionamiento
+            self.shutdown_output_PLC(
+                zone=zone, activation_time=activation_time
+            )
+        )
+        self.active_tasks[f"off-{zone}"] = ActivationTask(
+            task=task, start_time=time()
+        )
+
+        return ZoneActivation(
+            event="start",
+            timestamp=int(time()),
+            duration=activation_time,
+            zone=zone,
+        )
+
     def __cancel_task(self, name_task: str) -> None:
         # Cancelar task si existe
         if name_task in self.active_tasks:
@@ -176,9 +205,14 @@ class PLCController:
         """
         try:
             await sleep(activation_time)
-            self.plc_client.write_memories(self.direcciones_remoto_zonas[zone], False)
-            write_message_history(f"La zona {zone} terminó de regarse", activation_time)
-            write_last_activation(f"La zona {zone} fue regada durante:", seconds_to_hour(activation_time)) #seconds_to_hour -> (hour, minutes, seconds)
+            self.turn_off_zone(zone)
+            info = ZoneActivation(
+                event="stop",
+                timestamp=int(time()),
+                duration=activation_time,
+                zone=zone,
+            )
+            self.save_history(info)
         except CancelledError:
             print(f"Apagado automático cancelado forzado apagado de {zone}")
         finally:
