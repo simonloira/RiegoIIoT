@@ -156,6 +156,41 @@ class PLCController:
         address = self.remote_addresses[zone]
         return self.plc_client.write_memory(address, False)
 
+    def get_local_active_memories(self) -> LocalMemoriesStatus:
+        """Devuelve qué zona y en qué modo local se activó o desactivó según la
+        lógica programada en el propio PLC. Se comprueban las memorias en vez
+        de las salidas ya que una misma salida puede ser activada con distintas
+        condiciones.
+
+        Returns:
+            LocalMemoriesStatus: Nombres descriptivos de las marcas activadas y
+             desactivadas.
+        """
+        self.buffer_memories = self.plc_client.read_buffer_memories()
+        act_flags: list[TagName] = []
+        deact_flags: list[TagName] = []
+        if self.buffer_memories is None:
+            return LocalMemoriesStatus(act_flags=None, deact_flags=None)
+
+        for name, address in self.local_act_addresses.items():
+            if address not in self.active_memories:
+                if self.plc_client.read_memory(address, self.buffer_memories):
+                    self.active_memories.append(address)
+                    act_flags.append(name)
+
+            if address in self.active_memories:
+                if not self.plc_client.read_memory(
+                    address, self.buffer_memories
+                ):
+                    del self.active_memories[
+                        self.active_memories.index(address)
+                    ]
+                    deact_flags.append(name)
+        # Devuelve solo lo que el watchdog necesita saber
+        return LocalMemoriesStatus(
+            act_flags=act_flags, deact_flags=deact_flags
+        )
+
     def save_time(
         self, memory_name: TagName, values_w: tuple[int, int]
     ) -> None:
