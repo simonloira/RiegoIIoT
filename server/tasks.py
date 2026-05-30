@@ -1,12 +1,17 @@
 import asyncio
 from random import randint
+from time import time
 
 from backend.clima.climate_flags import get_day_hour_index
-import backend.PLC.plc_manager as plc_manager
+from backend.history.history_manager import HistorySave
+from backend.history.models import ZoneActivation
+from backend.PLC.plc_manager import PLCControl
 import backend.clima.weather_manager as weather_manager
 
 
-async def automatic_get_weather():
+async def automatic_get_weather(
+    plc: PLCControl
+) -> None:
     while True:
         try:
             print("☁️ Actualizando datos climatológicos...")
@@ -14,11 +19,12 @@ async def automatic_get_weather():
             print("tasks.py: ", weather)
             print("check_rain")
             rain_expected = check_rain(weather_data=weather)
-            plc_manager.plc.write_raining_memorie(rain=rain_expected)
+            plc.write_raining_memorie(rain=rain_expected)
             print("✅ Datos del clima actualizados.")
         except Exception as e:
             print("❌ Error al actualizar clima:", e)
-        await asyncio.sleep(randint(20, 40) * 60)  # Entre 20 y 40 minutos se actualiza la información
+        # Entre cada 20 y 40 minutos se actualiza la información
+        await asyncio.sleep(randint(20, 40) * 60)
 
 
 def check_rain(weather_data):
@@ -69,17 +75,26 @@ def check_rain(weather_data):
         print(f"Error {e}")
 
 
-async def server_heartbeat():
+async def server_heartbeat(plc: PLCControl) -> None:
+    # Se escribe en la marca M19 para que el LOGO sepa que el servidor sigue
+    # "vivo", es decir, que no está caído. Se enciende y se apaga cada dos
+    # segundos porque en el programa del LOGO hay dos temporizadores que si
+    # pasan 5 segundos sin haber cambios detectan que se detuvo el "latido",
+    # del servidor por lo que está caído, y pasa al modo de riego programado.
     while True:
         await asyncio.sleep(2)
-        plc_manager.plc.plc_client.write_memories([2,2], True, show_status=False if plc_manager.plc.plc_client.is_connected() else False) #Escribir en M19 (marca que se muestra en la pantalla del LOGO, que está conectado al servidor)
+        plc.plc_client.write_memory(
+            (2, 2), True if plc.plc_client.is_connected() else False
+        )
         await asyncio.sleep(2)
-        plc_manager.plc.plc_client.write_memories([2,2], False, show_status=False if plc_manager.plc.plc_client.is_connected() else False) #Escribir en M19 (marca que se muestra en la pantalla del LOGO, que está conectado al servidor)
+        plc.plc_client.write_memory(
+            (2, 2), False if plc.plc_client.is_connected() else False
+        )
 
 
-async def plc_reconnection():
+async def plc_reconnection(plc: PLCControl) -> None:
     while True:
-        plc_manager.plc.plc_client.plc_reconnection()
+        plc.plc_client.plc_reconnection()
         await asyncio.sleep(4)
 
 

@@ -4,9 +4,11 @@ from pydantic import BaseModel
 
 type ClientIP = str
 type ZoneName = str
-type UserEvents = Literal['connected', 'disconnected']
-type PLCEvents = Literal['start', 'manual_stop', 'stop']
+type PLCEvents = Literal[
+    "start", "manual_stop", "stop", "local_start", "local_stop"
+]
 type LastActivation = ZoneActivation | None
+
 
 class UserConnected(BaseModel):
     ip: str
@@ -18,7 +20,7 @@ class UserConnected(BaseModel):
 class ZoneActivation(BaseModel):
     event: PLCEvents
     timestamp: int
-    duration: int
+    duration: int | str = "Desconocida"
     zone: str
 
 

@@ -1,5 +1,7 @@
 from backend.history.activation_history import HistorySaver
 
+type HistorySave = HistorySaver
+
 history_handler: HistorySaver | None = None
 
 

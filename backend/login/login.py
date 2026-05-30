@@ -1,4 +1,4 @@
-from settings import settings #type: ignore
+from settings import settings
 
 
 def check_login(input_user:str, input_password:str) -> bool:
