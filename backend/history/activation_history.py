@@ -1,7 +1,13 @@
-from datetime import datetime
+from time import time
 from typing import Final
 
-type category_history = dict[str, str | tuple[str, tuple[int, ...]]]
+from backend.history.models import (
+    History,
+    UserConnected,
+    UserEvents,
+    ZoneActivation,
+)
+
 
 class HistorySaver:
     def __init__(self) -> None:
@@ -11,36 +17,27 @@ class HistorySaver:
         # }'
         # TODO: Reemplazar almacenamiento en RAM por almacenamiento persistente
         # con SQLite3
-        self.history: dict[str, category_history]
-        self.history = {"server": {}, "logo": {}, "last-activation":{}}
+        self.history = History()
         self.IPS_IDS: Final[dict[str, str]] = {} #IPs dispositivos conocidos
 
-    def save_output_status(self, msg:str, activation_time:int) -> None:
+    def save_output_status(self, info:ZoneActivation) -> None:
         """Método único para evitar código duplicado"""
-        self._save_last_activation(msg, activation_time)
-        self._save_PLC_status(msg, activation_time)
-        print("History: ", self.history)
+        if self.history.plc.get(info.zone) is None:
+            self.history.plc[info.zone] = []
+        self.history.plc[info.zone].append(info)
 
-    def save_client_status(self, message: str, ip: str)-> None:
+        self.history.last_activation = info
+
+    def save_client_status(self, ip: str, event: UserEvents)-> None:
         client_name = self._get_id_ip(ip)
-        self.history["server"][self._encode_ip(ip)] = message + client_name
+        info = UserConnected(
+            event=event,
+            timestamp=int(time()),
+            ip=ip,
+            name=client_name
+        )
 
-    def _save_last_activation(self, message: str, secs_act: int) -> None:
-        timestamp, real_t_act = self._build_value(secs_act)
-        last_activation = (message, real_t_act)
-        self.history["last-activation"][str(timestamp)] = last_activation
-
-    def _save_PLC_status(self, message: str, secs_act: int) -> None:
-        timestamp, real_t_act = self._build_value(secs_act)
-        h, m, s = real_t_act
-
-        message += f" {h:02d}h {m:02d}m {s:02d}s"
-        self.history["logo"][str(timestamp)] = message
-
-    def _build_value(self, secs_act: int) -> tuple[datetime, tuple[int, ...]]:
-        date = datetime.now()
-        h, m, s = self._seconds_to_hour(secs_act)
-        return date, (h, m, s)
+        self.history.users[ip] = info
 
     def _seconds_to_hour(self, total_seconds:int) -> tuple[int, int, int]:
         hour = int(total_seconds // 3600)
@@ -49,6 +46,11 @@ class HistorySaver:
         return hour, minutes, seconds
 
     def _encode_ip(self, ip_client: str) -> str:
+        """
+        Ya no sirve. Al principio sí porque se hacía un tunneling
+        con ngrok. Pero ahora para acceder desde cualquier parte
+        del mundo se usa tailscale que es una red privada.
+        """
         ip_parts = ip_client.split(".")
         ip_parts[1] = "x" * len(ip_parts[1])
         ip_parts[2] = "x" * len(ip_parts[2])

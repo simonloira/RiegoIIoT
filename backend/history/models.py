@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 type ClientIP = str
 type ZoneName = str
+type UserEvents = Literal["connected", "disconnected"]
 type PLCEvents = Literal[
     "start", "manual_stop", "stop", "local_start", "local_stop"
 ]
@@ -25,7 +26,7 @@ class ZoneActivation(BaseModel):
 
 
 class History(BaseModel):
-    #Users no es una lista para que se sobrescriba el estado del cliente
+    # Users no es una lista para que se sobrescriba el estado del cliente
     users: dict[ClientIP, UserConnected] = {}
     plc: dict[ZoneName, list[ZoneActivation]] = {}
     last_activation: LastActivation = None
