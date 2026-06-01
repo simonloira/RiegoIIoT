@@ -12,14 +12,17 @@ from backend.login.secure_token import check
 from backend.PLC import plc_manager
 
 router = APIRouter()
-check_token = check()
-plc = plc_manager.get_plc()
-weather = weather_manager.get_weather_extractor()
-history = history_manager.get_history_saver()
-connected_clients:set[WebSocket] = set()  # Esto se usa para hacer broadcast del diccionario time_data y que llegue en tiempo real a todos los clientes
+# Esto se usa para hacer broadcast del diccionario time_data y que llegue en
+# tiempo real a todos los clientes
+connected_clients: set[WebSocket] = set()
+
 
 @router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket) -> None:
+async def websocket_endpoint(
+    websocket: WebSocket,
+    plc: Annotated[PLCControl, Depends(get_plc)],
+    history: Annotated[HistorySave, Depends(get_history_saver)],
+) -> None:
     await websocket.accept()
     history.save_client_status("Se ha conectado: ", websocket.client.host)
     connected_clients.add(websocket)
