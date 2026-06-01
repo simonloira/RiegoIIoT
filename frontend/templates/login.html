@@ -82,60 +82,79 @@
     </head>
     <body>
         <main>
-            <form class="login-window" onsubmit="handleLogin(event)">
+            <div class="login-window">
                 <h1 id="title" style="font-family: Roboto; margin-top: 0;">Riego automático</h1>
-                <md-outlined-text-field id="user-input" label="Usuario" type="text" name="username" 
-                    autocomplete="username" required style="width: 100%; padding: 6; margin-bottom: 0.9em;">
-                </md-outlined-text-field>
-                <md-outlined-text-field id="password-input" label="Contraseña" type="password" name="password" autocomplete="current-password" required
-                    style="width: 100%; padding: 6; margin-bottom: 0.9em; border-radius: 6px; ">
-                </md-outlined-text-field>
+                <md-outlined-text-field id="user-input" label="Usuario" style="width: 100%; padding: 6; margin-bottom: 0.9em;"></md-outlined-text-field>
+                <md-outlined-text-field id="password-input" label="Contraseña" type="password" style="width: 100%; padding: 6; margin-bottom: 0.9em; border-radius: 6px; "></md-outlined-text-field>
                 <md-filled-button id="enter" type="submit">Entrar</md-filled-button>
                 <p id = "login-message"></p>
-            </form>
+            </div>
 
             <dialog id="error" style="justify-content: center;"></dialog>
         </main>
     </body>
 
-    <script>
-        async function handleLogin(event) {
-            event.preventDefault(); // Se detiene el envío por defecto del form
-            const form = event.target;
-            const formData = new FormData(form);
-            const btnEnter = document.getElementById('enter');
-            btnEnter.textContent = 'Entrando...';
-            btnEnter.disabled = true;
-            
-            const err  = document.getElementById('login-message');
-            const payload = {
-                username:  form.username.value.trim(),
-                password:  form.password.value,
-            };
+    <script> //Socket 
+        let miStorage = window.localStorage;
+        let socket = new WebSocket(`ws://${window.location.hostname}:8000/ws`);
+ 
+        socket.onerror = () => {
+            document.querySelector(".login-window").style.filter = "blur(6px)";
+            const dialog = document.getElementById("error");
+            dialog.innerHTML = `<h3>Error</h3> <p>Servidor no conectado</p>`;
+            dialog.showModal();
+        }
 
-            console.log(payload)
-            err.hidden = true;
-
-            const response = await fetch('/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            const data = await response.json();
+        //Comprueba el estado correcto del token
+        socket.onopen = () => { 
+            console.log("Conectado al WebSocket"); 
             
-            setTimeout(()=>{
-                 if (response.ok) {
-                    localStorage.setItem("token", JSON.stringify(data))
-                    window.location.href = '/';
-                }else{
-                    err.textContent = data.detail;
-                    err.hidden = false;
-                }
-                btnEnter.textContent = 'Entrar';
-                btnEnter.disabled = false;
-            }, 500)
-            
+            if (localStorage.getItem("loggedIn") && (localStorage.getItem("token") !== "")){
+                console.log("Comprobando el token")
+                socket.send(JSON.stringify({comando: "check_signature",
+                                        token: localStorage.getItem("token")}))
             }
+        }
+
+        //Recibe los datos desde el backend
+        socket.onmessage = (event) => { 
+            const data = JSON.parse(event.data); 
+            if (data["loggedIn"]){
+                    document.getElementById("login-message").innerText = "";
+                    document.cookie = `auth_token=${data.token}; path=/; SameSite=Lax;`;
+                    console.log("Nos vamos a index!!!")
+                    localStorage.setItem("token", data["token"]);
+                    localStorage.setItem("loggedIn", data["loggedIn"]);
+                    // reload the current page
+                    window.location.reload();
+                }
+            
+            if (enterClicked && !data["loggedIn"]){
+                setTimeout(() => {
+                    document.getElementById("login-message").innerText = "Usuario o contraseña incorrectos.";
+                    }, 1000);
+            }   
+            
+            if (data["logoConectado"]){
+                console.log("Logo conectado")
+            }else{
+                console.log("Logo desconectado")
+            }
+            }
+    </script>
+
+    <script> 
+        //Enviar solicitud login-window
+        const buttonEnter = document.getElementById("enter")
+        let enterClicked = false
+        
+        buttonEnter.onclick = (event) => {
+            socket.send(JSON.stringify({ comando: "login", 
+                                         user: document.getElementById("user-input").value,
+                                         password: document.getElementById("password-input").value
+                                        }));                    
+                        enterClicked = true;
+            }
+        
     </script>
 </html>

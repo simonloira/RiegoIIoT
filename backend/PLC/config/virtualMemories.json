@@ -1,62 +1,46 @@
 {
   "T.MZ-piscina": {
-    "type": "timer",
-    "time":{"memory_index":2, "length":"word"},
-    "timebase": {"memory_index":4, "length":"byte"}
+    "2": "word",
+    "4": "byte"
   },
   "T.MZ-porche": {
-    "type": "timer",
-    "time":{"memory_index":5, "length":"word"},
-    "timebase": {"memory_index":7, "length":"byte"}
+    "5": "word",
+    "7": "byte"
   },
   "T.MZ-callejon": {
-    "type": "timer",
-    "time":{"memory_index":8, "length":"word"},
-    "timebase": {"memory_index":10, "length":"byte"}
+    "8": "word",
+    "10": "byte"
   },
   "T.Auto-piscina": {
-    "type": "timer",
-    "time":{"memory_index":11, "length":"word"},
-    "timebase": {"memory_index":13, "length":"byte"}
+    "11": "word",
+    "13": "byte"
   },
   "T.Auto-porche": {
-    "type": "timer",
-    "time":{"memory_index":14, "length":"word"},
-    "timebase": {"memory_index":16, "length":"byte"}
+    "14": "word",
+    "16": "byte"
   },
   "T.Auto-callejon": {
-    "type": "timer",
-    "time":{"memory_index":17, "length":"word"},
-    "timebase": {"memory_index":19, "length":"byte"}
+    "17": "word",
+    "19": "byte"
   },
   "weekly-timer": {
-      "type": "weekly",
-      "slots": [
-                  { 
-                    "weekday":{"memory_index":20, "length":"byte"},
-                    "ontime": {"memory_index":21, "length":"word"},
-                    "offtime": {"memory_index":23, "length":"word"}
-                  }
-               ]
-    }
-  ,
+    "20": "byte",
+    "21": "word",
+    "23": "word"
+  },
   "T.Remote-piscina": {
-    "type": "timer",
-    "time":{"memory_index":29, "length":"word"},
-    "timebase": {"memory_index":31, "length":"byte"}
+    "29": "word",
+    "31": "byte"
   },
   "T.Remote-porche": {
-    "type": "timer",
-    "time":{"memory_index":32, "length":"word"},
-    "timebase": {"memory_index":34, "length":"byte"}
+    "32": "word",
+    "34": "byte"
   },
   "T.Remote-callejon": {
-    "type": "timer",
-    "time":{"memory_index":35, "length":"word"},
-    "timebase": {"memory_index":37, "length":"byte"}
+    "35": "word",
+    "37": "byte"
   },
   "astro-clock": {
-    "type": "astroclock",
-    "sunrise_offset":{"memory_index":25, "length":"word"}
+    "25": "word"
   }
 }

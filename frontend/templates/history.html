@@ -83,49 +83,43 @@
         </div>
 
         <script>
-            getHistory()
-            async function getHistory() {
-                const response = await fetch('/history-data', {
-                    method: 'GET',
-                });
+            
+            let miStorage = window.localStorage;        
+            let socket;
 
-                const data = await response.json();
+	        try{
+	            socket = new WebSocket(`ws://${window.location.host}/ws`);
+	        }catch(e){
+	            cosole.error("No se pudo acceder al backend", e);
+	        }
+
+            socket.onopen = () => {
+                console.log("Conexión WebSocket establecida");
                 
-                if (response.ok) {
-                    updateHistory(data['history'])
-                }else{
-                    showError("server-history", "Error de conexión con el servidor");
-                    showError("logo-history", "Error de conexión con el PLC");
+                if (localStorage.getItem("loggedIn") && (localStorage.getItem("token") !== "")) {
+                    console.log("Comprobando el token");
+                    socket.send(JSON.stringify({
+                        comando: "check_signature",
+                        token: localStorage.getItem("token")
+                    }));
                 }
-            }
+            };
 
-            function refreshHistory() {
-                console.log("Refrescando historial...");
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                console.log("Datos recibidos:", data);
                 
-                // Animar botones de refresco
-                const refreshBtns = document.querySelectorAll('.refresh-btn');
-                refreshBtns.forEach(btn => {
-                    btn.classList.add('spinning');
-                    btn.disabled = true;
-                });
+                if (data["history"]) {
+                    updateHistory(data["history"]);
+                }
+            };
 
-                // Mostrar estado de carga
-                showLoading("server-history", "Actualizando servidor...");
-                showLoading("logo-history", "Actualizando PLC...");
+            socket.onerror = (error) => {
+                console.error("Error WebSocket:", error);
+                showError("server-history", "Error de conexión con el servidor");
+                showError("logo-history", "Error de conexión con el PLC");
+            };
 
-                getHistory()
-                
-                // Quitar animación después de un tiempo
-                setTimeout(() => {
-                    refreshBtns.forEach(btn => {
-                        btn.classList.remove('spinning');
-                        btn.disabled = false;
-                    });
-                }, 1500);
-            }
-        </script>
-
-        <script>
             function updateHistory(historyData) {
                 // Actualizar historial del servidor
                 if (historyData.server) {
@@ -187,16 +181,6 @@
                 `;
             }
 
-            function showLoading(panelId, message) {
-                const panel = document.getElementById(panelId);
-                panel.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">🔄</div>
-                        <p>${message}</p>
-                    </div>
-                `;
-            }
-
             function showError(panelId, errorMessage) {
                 const panel = document.getElementById(panelId);
                 panel.innerHTML = `
@@ -206,7 +190,51 @@
                     </div>
                 `;
             }
+
+            function refreshHistory() {
+                console.log("Refrescando historial...");
+                
+                // Animar botones de refresco
+                const refreshBtns = document.querySelectorAll('.refresh-btn');
+                refreshBtns.forEach(btn => {
+                    btn.classList.add('spinning');
+                    btn.disabled = true;
+                });
+
+                // Mostrar estado de carga
+                showLoading("server-history", "Actualizando servidor...");
+                showLoading("logo-history", "Actualizando PLC...");
+
+                // Solicitar actualización al servidor
+                if (socket.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify({
+                        comando: "refresh_history"
+                    }));
+                } else {
+                    console.log("WebSocket non está conectado, intentando reconectar...");
+                }
+
+                // Quitar animación despué de un tiempo
+                setTimeout(() => {
+                    refreshBtns.forEach(btn => {
+                        btn.classList.remove('spinning');
+                        btn.disabled = false;
+                    });
+                }, 1500);
+            }
+
+            function showLoading(panelId, message) {
+                const panel = document.getElementById(panelId);
+                panel.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">🔄</div>
+                        <p>${message}</p>
+                    </div>
+                `;
+            }
         </script>
     </body>
 </html>
+
+
 
