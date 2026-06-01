@@ -132,10 +132,15 @@
         let dirSalidas, estadosSalidas, estadosSistema, connectedLogo;
         let lastOutputsState = []; //Es el estado anterior de la salida
         let timeData = {} //Tiempo en segundos por defecto
+        let socket = null;
+    </script>
 
-        if (document.visibilityState == "visible"){
+    <script> //Mensajes del servidor al cliente Socket
+        function connect(){
+            if (socket && (socket.readyState === 0 || socket.readyState === 1)){
+                return
+            }
             socket = new WebSocket(`ws://${window.location.hostname}:8000/ws`);
-        }
 
         socket.onopen = () => {
             const serverElemet = document.getElementById("status-server");
@@ -148,6 +153,7 @@
                 // checkJWTToken()
             refreshWeather()
         };
+            
         socket.onmessage = (event) => {
             const data = JSON.parse(event.data);
             const dialog = document.getElementById("error");
@@ -188,6 +194,17 @@
                 // }
             updateLastActivationHistory(data)
         }
+            
+            socket.onclose = () => {
+                socket = null;
+            }
+        }
+       
+        document.addEventListener('visibilitychange', (e) => {
+            if (document.visibilityState === 'visible') connect();
+        })
+
+        connect()
     </script>
 
     <script>//Representación de parámetros recibidos desde el servidor
