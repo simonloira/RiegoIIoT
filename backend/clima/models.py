@@ -17,7 +17,7 @@ type MagnitudData = dict[str, str] | str
 @dataclass
 class MeteoGaliciaData:
     timestamp: str
-    station_id: int
+    station_id: str
     temp_15m: float = 0.0
     temp_dewpoint: float = 0.0
     hum_rel: float = 0.0
