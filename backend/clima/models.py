@@ -1,11 +1,14 @@
 from dataclasses import dataclass
 from time import time
+from typing import Literal, TypedDict
+type AemetFullData = dict[Literal['7d', 'hourly'], AemetData]
 
 type AllMagnitudeVariants = None | list[MagnitudData] | MagnitudData | str
 type RawAemetData = dict[str, dict[str, AemetPrediction | str]]
 type AemetPrediction = dict[str, list[DayData]]
 type DayData = dict[str, str | list[MagnitudData]]
 type MagnitudData = dict[str, str] | str
+
 
 @dataclass
 class MeteoGaliciaData:
@@ -24,6 +27,9 @@ class MeteoGaliciaData:
     solar_hours: float = 0.0
 
 
+class WeatherData(TypedDict, total=False):
+    meteogalicia: MeteoGaliciaData
+    aemet: AemetFullData
 @dataclass
 class AemetMagnitud:
     hour: str | None

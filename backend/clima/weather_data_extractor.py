@@ -23,6 +23,7 @@ from backend.clima.models import (
     MagnitudData,
     MeteoGaliciaData,
     RawAemetData,
+    WeatherData,
 )
 from settings import settings
 
@@ -579,7 +580,7 @@ class WeatherMain:
 
     def get_weather_data(self,
                          apis:list[str]=["aemet", "meteogalicia"]
-                         ) -> dict[str, Any]:
+                         ) -> WeatherData:
         """ Punto de entrada para obtener toda la información climatológica
 
             Args:
@@ -597,7 +598,7 @@ class WeatherMain:
         if len(apis) == 0:
             raise ValueError("No se escogió una API correcta: [aemet, meteogalicia]")  # noqa: E501
 
-        full_data:dict[str, Any] = {}
+        full_data:WeatherData = {}
         for api in apis:
             #Se recuperan los tiempos de llamada y de reintento de la API
             self.time_retry = self.apis_config[api]["time_retry"]
