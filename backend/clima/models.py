@@ -77,21 +77,24 @@ class CurrentWeatherData(BaseModel):
 @dataclass
 class APIState:
     """Estado de las llamadas a la API"""
+
     last_fetch_time: float = 0
     next_retry_time: float = 0
 
     def __can_fetch(self, cache_ttl: int) -> bool:
         """Verificar si se puede hacer una nueva petición"""
+        can_fetch = (time() - self.last_fetch_time) > cache_ttl
         print(cache_ttl, self.last_fetch_time)
-        print(f"Puede llamar? {(time() - self.last_fetch_time) > cache_ttl}")
-        return (time() - self.last_fetch_time) > cache_ttl
-    
+        print(f"Puede llamar? {can_fetch}")
+        return can_fetch
+
     def __can_retry(self) -> bool:
         """Verificar si se puede reintentar"""
+        can_retry = self.next_retry_time > 0 and time() > self.next_retry_time
         print(self.next_retry_time, time())
-        print(f"Puede reintentar? {self.next_retry_time > 0 and time() > self.next_retry_time }")
-        return self.next_retry_time > 0 and time() > self.next_retry_time 
-    
+        print(f"Puede reintentar? {can_retry}")
+        return can_retry
+
     def can_call_or_retry(self, cache_ttl: int) -> bool:
         return self.__can_fetch(cache_ttl) or self.__can_retry()
 
