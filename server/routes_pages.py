@@ -1,16 +1,22 @@
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.exceptions import HTTPException
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, Response, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from backend.login.secure_token import check
-import backend.history.history_manager as history_manager
-from backend.clima.climate_flags import current_sky_status, current_temperature
+from backend.clima.weather_manager import get_weather_extractor, WeatherExtractor
+from backend.history.history_manager import get_history_saver, HistorySave
+from backend.clima.climate_flags import current_data
+from backend.clima.models import APIs
 from backend.login.login import check_login
 from backend.login.secure_token import check, gen_payload, generate_token
-from server.models import HistoryResponse, LoginRequest, MessageResponse
+from server.models import (
+    LoginRequest,
+    MessageResponse,
+    WeatherResponse,
+    HistoryResponse,
+)
 from settings import settings
 
 router = APIRouter()
@@ -26,37 +32,37 @@ async def validate_token(request: Request) -> bool:
 
 
 @router.get("/", response_class=HTMLResponse)
-async def serve_page(request: Request,
-                     valid_token: Annotated[bool, Depends(validate_token)]
-                     ) -> HTMLResponse:
+async def serve_page(
+    request: Request, valid_token: Annotated[bool, Depends(validate_token)]
+) -> HTMLResponse:
     if valid_token:
         return templates.TemplateResponse("index.html", {"request": request})
     return templates.TemplateResponse("login.html", {"request": request})
 
 
-@router.get("/prevision", response_class=HTMLResponse)
-async def read_item(request: Request):
-    context = weather_manager.get_weather.read_last_saved_data(apis=["aemet", "meteogalicia"]) #[["aemet_7d", "aemet_h"], ["meteogalicia"]]
-    context = {"aemet_7d": context[0][0], "aemet_h": context[0][1], "meteogalicia": context[1][0],
-               "sky_status_index_day": current_sky_status(aemet_h=context[0][1]),
-               "current_temperature": current_temperature(meteogalicia=context[1][0])}
-    
-    return templates.TemplateResponse(
-        request=request, name="weather_bueno.html", context=context
-    )
+@router.get("/prevision")
+async def render_forecast(
+    request: Request,
+    valid_token: Annotated[bool, Depends(validate_token)],
+    weather: Annotated[WeatherExtractor, Depends(get_weather_extractor)],
+) -> Any:
+    if valid_token:
+        return templates.TemplateResponse(
+            "weather_bueno.html",
+            context={"request": request, **get_weather_data(weather).model_dump()},
+        )
+    return RedirectResponse(url=request.url_for("serve_page"), status_code=303)
 
 
 @router.get("/historial", response_class=HTMLResponse)
-async def render_history(request: Request)-> HTMLResponse:
-    return templates.TemplateResponse(
-        request=request, name="history.html"
-    )
+async def render_history(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(request=request, name="history.html")
 
 
 @router.post("/login")
 async def login_for_access_token(
-    form_data:LoginRequest,
-    response:Response) -> MessageResponse:
+    form_data: LoginRequest, response: Response
+) -> MessageResponse:
     success = check_login(form_data.username, form_data.password)
     if not success:
         raise HTTPException(
@@ -68,24 +74,29 @@ async def login_for_access_token(
     access_token = gen_payload()
 
     token = generate_token(payload=access_token)
-    #TODO: REFRESH TOKEN en vez de simplemente aumentar el tiempo
-    response.set_cookie(key="auth_token", value= token, 
-                        samesite="strict", httponly=True,
-                        max_age=settings.ACCESS_TOKEN_MINUTES*60)
+    # TODO: REFRESH TOKEN en vez de simplemente aumentar el tiempo
+    response.set_cookie(
+        key="auth_token",
+        value=token,
+        samesite="strict",
+        httponly=True,
+        max_age=settings.ACCESS_TOKEN_MINUTES * 60,
+    )
 
     return MessageResponse(message="Se ha inicidado sesión")
 
 
 @router.get("/history-data")
-async def read_history_data(request: Request,
-                            valid_token: Annotated[bool, Depends(validate_token)]
-                            )-> HistoryResponse:
+async def read_history_data(
+    request: Request,
+    valid_token: Annotated[bool, Depends(validate_token)],
+    history_saver: Annotated[HistorySave, Depends(get_history_saver)],
+) -> HistoryResponse:
+
     if valid_token:
-        return HistoryResponse(history=history_manager.history_handler.history)
+        return HistoryResponse(history=history_saver.history)
     raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No iniciaste sesión",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="No iniciaste sesión",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
