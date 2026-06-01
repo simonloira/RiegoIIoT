@@ -111,8 +111,7 @@
     </body>
 
     <script> //Mensajes del servidor al cliente Socket
-        let socket;
-        let dirSalidas, estadosSalidas, entradas, connectedLogo;
+        let dirSalidas, estadosSalidas, estadosSistema, connectedLogo;
         let lastOutputsState = []; //Es el estado anterior de la salida
         let timeData = {} //Tiempo en segundos por defecto
 
@@ -128,7 +127,7 @@
             
             sessionStorage.setItem("receivedTimeZones", JSON.stringify(false))
 
-            checkJWTToken()
+                // checkJWTToken()
             refreshWeather()
         };
         socket.onmessage = (event) => {
@@ -145,16 +144,18 @@
                 gaugeLevel();
             }
 
-            if (Object.keys(data).includes("entradas-salidas-dirSalidas")){
+                if (Object.keys(data).includes("estadosSistema-salidas-dirSalidas")){
                 document.querySelector("body").style.filter = "none";
                 dialog.close();
-                entradas = data["entradas-salidas-dirSalidas"][0][0];
-                estadosSalidas = data["entradas-salidas-dirSalidas"][0][1];
-                dirSalidas = data["entradas-salidas-dirSalidas"][1];
+                    estadosSistema = data["estadosSistema-salidas-dirSalidas"][0][0];
+                    estadosSalidas = data["estadosSistema-salidas-dirSalidas"][0][1];
+                    dirSalidas = data["estadosSistema-salidas-dirSalidas"][1];
+                    connectedLogo = data["logoConectado"];
                 changeButtonAppareance(estadosSalidas, dirSalidas);
-                changeStatusIrrigator(estadosSalidas);
-                activeZones(estadosSalidas, dirSalidas);
-                changeStatusWell(entradas)
+                    changeStatusIrrigator(connectedLogo, estadosSalidas, estadosSistema);
+                    activeZones(estadosSalidas, dirSalidas, estadosSistema);
+                    changeStatusWell(connectedLogo, estadosSistema, estadosSalidas);
+                    showConnectedLogo(connectedLogo);
             }else{
                 document.querySelector("body").style.filter = "blur(6px)";
                 dialog.innerHTML = `<p>Recibiendo información del servidor...</p>`;
@@ -162,11 +163,11 @@
             }
             timeData = receiveTimeData(data, timeData) //Por defecto es igual al diccionario del servidor
             console.log("timeData socket.onmessage: ", timeData)
-            showConnectedLogo(data)
-            if (Object.keys(data).includes("loggedIn")){
-                checkIfLoggedIn(data["loggedIn"]);
-                localStorage.setItem("loggedIn", data["loggedIn"])
-            }
+                // ya no hace falta, ya está bien hecho desde el backend, pero me da pena borrarlo
+                //if (Object.keys(data).includes("loggedIn")){ 
+                //     checkIfLoggedIn(data["loggedIn"]);
+                //     localStorage.setItem("loggedIn", data["loggedIn"])
+                // }
             updateLastActivationHistory(data)
         }
     </script>
@@ -180,21 +181,22 @@
             }
         }
 
-        function checkIfLoggedIn(loggedIn){ //Comprueba si se sigue loggeado o no
-            if (!loggedIn){ //LoggedIn es recibido desde el server
-                document.querySelector("body").style.filter = "blur(6px)";
-                const dialog = document.getElementById("error");
-                dialog.innerHTML = `<h3>Error</h3> <p>Sesión caducada</p>`;
-                dialog.showModal();
-            }
-        }
+        //ya no hace falta, ya está bien hecho desde el backend, pero me da pena borrarlo 
+        //function checkIfLoggedIn(loggedIn){ //Comprueba si se sigue loggeado o no
+        //     if (!loggedIn){ //LoggedIn es recibido desde el server
+        //         document.querySelector("body").style.filter = "blur(6px)";
+        //         const dialog = document.getElementById("error");
+        //         dialog.innerHTML = `<h3>Error</h3> <p>Sesión caducada</p>`;
+        //         dialog.showModal();
+        //     }
+        // }
 
         function receiveTimeData(serverData, timeData){
             let receivedTimeZones = JSON.parse(sessionStorage.getItem("receivedTimeZones")) //La primera vez no existe, pero bueno, no da error si no existe
             if (!Object.keys(serverData).includes("timeZonesSecs")){
-                console.log("No existe")
+                console.log("No existe timeData")
                 return timeData //Si no se recibe en el JSON enviado desde el server una key que sea "timeZonesSecs" sale de la función
-            } 
+            } //Podría poner lo contrario, es decir, que si existe que se ejecute lo que hay abajo y eliminar lo de arriba pero bueno, así queda más plano
             let tempTimeZonesData = {};
             let timeString = {};
             console.log("serverTimeZoneSecs receivedTimeData: ", serverData["timeZonesSecs"])
@@ -243,8 +245,8 @@
         }
         
       //Estado actual de conexión del PLC es llamada cuando el cliente recibe el estado de conexión del PLC LOGO!
-        function showConnectedLogo(serverData){ //Pasa los parámetros a la función que actualiza el estado del PLC
-            if (serverData["logoConectado"]){
+        function showConnectedLogo(connectedLogo){ //Pasa los parámetros a la función que actualiza el estado del PLC
+            if (connectedLogo){
                 updateStatusPLC("cloud_done", "LOGO! conectado correctamente", "green")
             }else{
                 updateStatusPLC("report", "LOGO! desconectado", "red")
@@ -261,10 +263,6 @@
         }
 
         function changeButtonAppareance(estadosBools, direccionesSalidas){ //Cambia la visualización del botón correspondiente a cada zona
-            //HAY UN ERROR EN ESTA FUNCIÓN  QUE HAY QUE BUSCARLO: Al actualizar la página y teniendo varias zonas activas,
-            //sólo se cambia la apariencia del botón correspondiente a la primera zona activa. Yo supongo que será algo de que no se aplica el
-            // el estilo porque estoy haciendo algo mal con las clases.
-                                   
             //------------------------------------------------------Variables globales: ---------------------------------------------------------------------//
             //lastOutputsState -> Almacena el último estado de las salidas. En esta función se cambia su estado y también en activaciónZona().               //
             //                    Sirve para saber qué zona varió su estado y cambiar la apariencia del botón correspondiente                                //
@@ -313,26 +311,45 @@
 
         }
         
-        function changeStatusIrrigator(estadosBools){ //Cambia la visualización de la tarjeta del riego
+        function changeStatusIrrigator(connectedLogo, estadosSalidas, estadosSistema){ //Cambia la visualización de la tarjeta del riego
             const estadoText = document.getElementById("status-irrigator");
             const estadoElement = document.getElementById("status-automatic-irrigation");
-            for (estadoSalida of estadosBools){
+
+            estadoElement.classList.remove('raining', 'active', 'idle', 'unknown-status');
+            if (!connectedLogo){
+                estadoElement.classList.add("unknown-status")
+                estadoText.textContent = "No hay datos";
+                return //No hay datos porque PLC desconectado
+            }
+      
+            if (estadosSistema["Lluvia"]){
+                estadoElement.classList.add("raining")
+                estadoText.textContent = "Lluvia";
+                return
+            }
+            for (estadoSalida of estadosSalidas){
                 if(estadoSalida){
                     estadoText.textContent = "Activo";
-                    estadoElement.style.background = "linear-gradient(135deg, #2196F3, #1976D2)"
+                    estadoElement.classList.add("active")
                     return
                 }
-                estadoElement.style.background = "linear-gradient(135deg, #3b5e7a, #597188)"
-                estadoText.textContent = "Inactivo";
             }
+            estadoElement.classList.add("idle")
+            estadoText.textContent = "Inactivo";
         }
 
-        function activeZones(estadosBools, direccionesSalidas){ //Muestra las zonas que están regándose en la tarjeta del riego
-             //estadosBools: Es un array recibido desde el server  con el estado de las salidas fïsicas del LOGO!: Ej.: [false, false, false, false]
+        function activeZones(estadosSalidas, direccionesSalidas, estadosSistema){ //Muestra las zonas que están regándose en la tarjeta del riego
+            //estadosSalidas: Es un array recibido desde el server  con el estado de las salidas fïsicas del LOGO!: Ej.: [false, false, false, false]
             //direccionesSalidas: es un diccionario recibido desde el server con la estructura: "zona": [ByteIndex, bitIndex] 
             //El byte de las salidas es el byte 0 ya que sólo tiene 4 salidas físicas el LOGO! (4 bits) pero bueno, lo dejo así por si se quiere escalar
             let activeZones = []; 
-            let activeZonesElement = document.getElementById("active-zones");
+            const activeZonesElement = document.getElementById("active-zones");
+
+            if (estadosSistema["Lluvia"]){
+                activeZonesElement.textContent = "No se regará en modo automático";
+                return
+            }
+
             for (nombreZona of Object.keys(direccionesSalidas)){
                 //En el caso de escalar el sistema con más salidas (más de 7 salidas) meter otro bucle for i desde 0 hasta direccionesSalidas[nombreZona].length 
                 let bitSalida = direccionesSalidas[nombreZona][1]; 
@@ -341,50 +358,59 @@
                 }
             }
             //Se escriben las zonas activas en la tarjeta de riego
-            if (activeZones.length == 0){
-                activeZonesElement.textContent = "";
-            }else{
+            
+            if (activeZones.length > 0){
                 activeZonesElement.textContent = "Zona(s) " + activeZones.join(", ");
             }
 
         }
         
-        function changeStatusWell(estadosBool) { //Cambia la visualización de la tarjeta de nivel del pozo
+        function changeStatusWell(connectedLogo, estadosSistema, estadosSalidas) { //Cambia la visualización de la tarjeta de nivel del pozo
             // Direcciones entradas interruptores boya pozo: I1 (estadosBool[0]): Nivel alto | I2 (estadosBool[1]): Nivel medio
             const wellSign = document.getElementById("well-level");
             const wellStatusText = document.getElementById("well-status-text");
             const tipText = document.getElementById("tip-message"); 
 
             // Borrar todas las clases de estado anteriores
-            wellSign.classList.remove('nivel-alto', 'nivel-medio', 'nivel-bajo', 'error');
+            wellSign.classList.remove('nivel-alto', 'nivel-medio', 'nivel-bajo', 'error', 'unknown-status');
 
-            if (estadosBool.length == 0){
+            if (!connectedLogo){
+                wellSign.classList.add('unknown-status');
+                wellStatusText.textContent = 'No hay datos';
+                tipText.textContent = "El PLC está desconectado"
                 return //No hay datos porque PLC desconectado
             }
 
-            if (estadosBool[0] && estadosBool[1]) {
-                // Nivel alto
-                wellSign.classList.add('nivel-alto');
-                wellStatusText.textContent = 'Alto';
-                tipText.textContent = "No hace falta preocuparse"
-            }
-            else if (estadosBool[0] && !estadosBool[1]) {
+          
+            if (estadosSistema["ContactoAuxiliarSoldado"]) { //Prioridad máxima
                 // Error: I2 no está funcionando correctamente
                 wellSign.classList.add('error');
-                wellStatusText.textContent = 'Error interruptor boya de nivel medio';
-                tipText.textContent = "No funciona correctamente"
+                wellStatusText.textContent = 'AVERÍA';
+                tipText.textContent = "El contacto de la bomba está soldado, no funcionará"
             }
-            else if (!estadosBool[0] && estadosBool[1]) {
-                // Nivel medio
-                wellSign.classList.add('nivel-medio');
-                wellStatusText.textContent = 'Medio';
-                tipText.textContent = "Vigila el nivel"
+            else if (estadosSistema["NumMáxArrBombaAlcanzado"]) {
+                // Error: I2 no está funcionando correctamente
+                wellSign.classList.add('error');
+                wellStatusText.textContent = 'Precaución';
+                tipText.textContent = "La bomba no funcionará."
             }
-            else {
+            else if (!estadosSistema["SistemaEstable"]) {
                 // Nivel bajo
                 wellSign.classList.add('nivel-bajo');
                 wellStatusText.textContent = 'Bajo';
                 tipText.textContent = "Hasta que suba el nivel no se usará el pozo"
+            }
+            else if (estadosSalidas[3]) { //Q4 bomba activada
+                // Nivel medio
+                wellSign.classList.add('nivel-medio');
+                wellStatusText.textContent = 'Medio';
+                tipText.textContent = "La bomba está en marcha"
+            }
+            else { //Prioridad mínima
+                 // Nivel alto
+                wellSign.classList.add('nivel-alto');
+                wellStatusText.textContent = 'Alto';
+                tipText.textContent = "No hace falta preocuparse"
             }
         }
     </script>
@@ -520,45 +546,46 @@
     </script>
 
     <script> //Enviar comandos al server
-        function refreshWeather(){
-            // Se ejecuta al inicio
-            socket.send(JSON.stringify({ comando: "refresh_weather" }));
-            console.log("Weather refrescado ✅ (inicio)");
+        // function refreshWeather(){ tengo que hacer un fetch mejor en vez de hacer esto de pedirlo con comandos
+        //     // Se ejecuta al inicio
+        //     socket.send(JSON.stringify({ comando: "refresh_weather" }));
+        //     console.log("Weather refrescado ✅ (inicio)");
 
-            // Y luego cada 50 minutos
-            setInterval(() => {
-                socket.send(JSON.stringify({ comando: "refresh_weather" }));
-                console.log("Weather refrescado ✅ (intervalo)");
-            }, 50 * 60 * 1000);
-        }
+        //     // Y luego cada 50 minutos
+        //     setInterval(() => {
+        //         socket.send(JSON.stringify({ comando: "refresh_weather" }));
+        //         console.log("Weather refrescado ✅ (intervalo)");
+        //     }, 50 * 60 * 1000);
+        // }
 
-        //Comprobación del token JWT
-            function checkJWTToken(){//Al entrar en la página se envía al servidor la orden de comprobar el token JWT
-                //Da igual si el cliente borra esta función pensando que así no se comprueba el token y se mantiene loggedIn en True
-                //Ya que el loggedIn en localStorage no hace nada simplemente tiene función de debuggeo pero lo dejo en localStorage por si acaso
-                //Lo importante está en el server, porque si el server no detecta que está loggeado, no va a exisitir ningún tipo de comunicación entre cliente y server
-                if (localStorage.getItem("loggedIn") && (localStorage.getItem("token") !== "")){
-                    console.log("Comprobando el token");
-                    socket.send(JSON.stringify({comando: "check_signature",
-                                            token: getCookie("auth_token")}))
-                }
-            }
+        //ya no hace falta, ya está bien hecho desde el backend, pero me da pena borrarlo
+        // Comprobación del token JWT 
+            // function checkJWTToken(){//Al entrar en la página se envía al servidor la orden de comprobar el token JWT
+            //     //Da igual si el cliente borra esta función pensando que así no se comprueba el token y se mantiene loggedIn en True
+            //     //Ya que el loggedIn en localStorage no hace nada simplemente tiene función de debuggeo pero lo dejo en localStorage por si acaso
+            //     //Lo importante está en el server, porque si el server no detecta que está loggeado, no va a exisitir ningún tipo de comunicación entre cliente y server
+            //     if (localStorage.getItem("loggedIn") && (localStorage.getItem("token") !== "")){
+            //         console.log("Comprobando el token");
+            //         socket.send(JSON.stringify({comando: "check_signature",
+            //                                 token: getCookie("auth_token")}))
+            //     }
+            // }
             //Se consigue la cookie que contiene el token almacenado
-            function getCookie(cname) {
-                let name = cname + "=";
-                let decodedCookie = decodeURIComponent(document.cookie);
-                let ca = decodedCookie.split(';');
-                for(let i = 0; i < ca.length; i++) {
-                    let c = ca[i];
-                    while (c.charAt(0) == ' ') {
-                        c = c.substring(1);
-                    }
-                    if (c.indexOf(name) == 0) {
-                        return c.substring(name.length, c.length);
-                    }
-                }
-                return "";
-            }
+            // function getCookie(cname) {
+            //     let name = cname + "=";
+            //     let decodedCookie = decodeURIComponent(document.cookie);
+            //     let ca = decodedCookie.split(';');
+            //     for(let i = 0; i < ca.length; i++) {
+            //         let c = ca[i];
+            //         while (c.charAt(0) == ' ') {
+            //             c = c.substring(1);
+            //         }
+            //         if (c.indexOf(name) == 0) {
+            //             return c.substring(name.length, c.length);
+            //         }
+            //     }
+            //     return "";
+            // }
         
         
         function sendZoneTime(nombreZona, tiempoActivacion){
@@ -780,13 +807,10 @@
         }, false);
 
     </script>
+
+    <!-- <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
+    <script>var vConsole = new window.VConsole();</script> -->
 </html>
-
-
-
-
-
-
 
 
 
