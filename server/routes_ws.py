@@ -28,9 +28,13 @@ async def websocket_endpoint(
     history.save_client_status(websocket.client.host, "connected")
     connected_clients.add(websocket)
     try:
-        await websocket.send_text(dumps({"timeZonesSecs": plc.TIME_DATA}))
-        data_send: dict
-
+        init_json =  SocketMessageResponse(
+            status="success",
+            event="change-zone-time",
+            data={"timeZonesSecs": plc.TIME_DATA},
+            broadcast=False,
+        )
+        await websocket.send_json(init_json.model_dump())
         while True:
             # print(f"\nSending: {data_send}\n")
             await websocket.send_json(
