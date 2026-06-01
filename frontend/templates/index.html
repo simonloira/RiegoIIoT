@@ -128,14 +128,24 @@
         <dialog id="error"></dialog>
     </body>
 
-    <script> //Mensajes del servidor al cliente Socket
-        let dirSalidas, estadosSalidas, estadosSistema, connectedLogo;
+    <script>
         let lastOutputsState = []; //Es el estado anterior de la salida
         let timeData = {} //Tiempo en segundos por defecto
         let socket = null;
     </script>
 
     <script> //Mensajes del servidor al cliente Socket
+        function refreshPLCData(serverData){
+            let estadosSistema = serverData.status_memories;
+            let estadosSalidas = serverData.outputs;
+            let dirSalidas = serverData.outputs_addresses;
+            let connectedLogo = serverData.plc_connected;
+            changeButtonAppareance(estadosSalidas, dirSalidas);
+            activeZones(connectedLogo, estadosSalidas, dirSalidas, estadosSistema);
+            changeStatusWell(connectedLogo, estadosSistema, estadosSalidas);
+            showConnectedLogo(connectedLogo);
+            updateLastActivationHistory(serverData["last_activation"])
+        }
         function connect(){
             if (socket && (socket.readyState === 0 || socket.readyState === 1)){
                 return
