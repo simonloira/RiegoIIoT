@@ -52,6 +52,15 @@ class AemetData:
     days: list[AemetDayBase]
 
 
+class CurrentWeatherData(BaseModel):
+    index_day:int
+    index_hour:int
+    sky_status:str
+    sky_icon:str
+    temperature:int
+    dew_point:int
+
+
 @dataclass
 class APIState:
     """Estado de las llamadas a la API"""

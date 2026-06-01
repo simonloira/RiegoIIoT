@@ -1,9 +1,10 @@
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
 from backend.history.models import LastActivation, History
 from backend.PLC.models import PLCAddress, TagName
+from backend.clima.models import MeteoGaliciaData, AemetFullData, CurrentWeatherData
 
 class MessageResponse(BaseModel):
     message: str
@@ -39,3 +40,8 @@ class PLCDataResponse(SocketResponse):
     outputs: list[bool] | None = None
     outputs_addresses: dict[TagName, PLCAddress]
     last_activation: LastActivation = None
+
+
+class WeatherResponse(CurrentWeatherData):
+    meteogalicia: MeteoGaliciaData
+    aemet:AemetFullData
