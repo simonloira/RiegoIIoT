@@ -94,9 +94,40 @@ async def broadcast(data: dict[str, int]) -> None:
 def handle_zone_act(
     request: SocketRequest, plc: PLCControl, history: HistorySave
 ) -> SocketMessageResponse:
+    # Botón de activación de x zona en index.html
+    result = plc.zone_activation(
+        zone=request.zone, activation_time=request.act_time
+    )
+    if result is None:
+        return SocketMessageResponse(
+            status="error",
+            event=request.command,
+            error_msg="Error leyendo buffer de memoria o sistema inestable.",
+            broadcast=False,
+        )
+    history.save_output_status(result)
+    return SocketMessageResponse(
+        status="success",
+        event=request.command,
+        data=result.model_dump(),
+        broadcast=False,
+    )
+
+
 def handle_time_zone(
     request: SocketRequest, plc: PLCControl, history: HistorySave
 ) -> SocketMessageResponse:
+    time_data = (request.act_time, BasesTime.MINUTES.value)
+    plc.save_time(f"T.Remote-{request.zone}", time_data)
+
+    return SocketMessageResponse(
+        status="success",
+        event=request.command,
+        data={"timeZonesSecs": plc.TIME_DATA},
+        broadcast=True,
+    )
+
+
 MSG_ACTIONS_MAP = {
     "activate-zone": handle_zone_act,
     "change-zone-time": handle_time_zone,
@@ -113,6 +144,17 @@ def handle_client_messages(
 
         print("Client_data: ", request)
         print(f"Client_data.Comando: {request.command}")
+
+        func = MSG_ACTIONS_MAP.get(request.command)
+        if func is None:
+            return SocketMessageResponse(
+                status="error",
+                event=request.command,
+                error_msg="No existe el comando",
+                broadcast=False,
+            )
+        response = func(request=request, plc=plc, history=history)
+        return response
 
     except ValidationError as e:
         print(e)
