@@ -457,7 +457,7 @@ class GetAemetData():
 
             Args:
                 aemet_data (RawAemetData): Información cruda del xml de aemet
-                parseado.
+                    parseado.
 
             Returns:
                 AemetData: Información filtrada de cada tipo de dato: 7d/hourly
@@ -503,10 +503,10 @@ class GetAemetData():
     def _parse_magnitud(self,
                          magnitud_data:AllMagnitudeVariants
                          ) -> list[AemetMagnitud]:
-        """ Filtra la información de las magnitudes
+        """Filtra la información de las magnitudes
 
-            Args:
-                magnitud_data (AllMagnitudeVariants): Este tipo contiene todos
+           Args:
+            magnitud_data (AllMagnitudeVariants): Este tipo contiene todos
                 las posibles estructuras que puede tener la información de cada
                 magnitud. Generalmente la información suele venir en una lista
                 de diccionarios de longitud igual a los periodos diarios, pero
@@ -587,14 +587,14 @@ class WeatherMain:
 
             Args:
                 apis (list[str], optional): Por defecto [aemet, meteogalica],
-                si sólo se quiere obtener datos de una api:
-                ["aemet"]/["meteogalicia]
+                    si sólo se quiere obtener datos de una api:
+                    ["aemet"]/["meteogalicia]
 
             Returns:
                 dict[str, Any]: Información de la apis junta en un diccionario.
                 Sigue la siguiente estructura:
-                `{'aemet': {info de aemet},
-                  'meteogalicia': {info de meteogalicia}}`
+                {"aemet": AemetFullData,
+                 "meteogalicia": MeteoGaliciaData}
         """
 
         if len(apis) == 0:
