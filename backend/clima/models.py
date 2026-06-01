@@ -1,6 +1,10 @@
 from dataclasses import dataclass
+from enum import Enum
 from time import time
 from typing import Literal, TypedDict
+
+from pydantic import BaseModel
+
 type AemetFullData = dict[Literal['7d', 'hourly'], AemetData]
 
 type AllMagnitudeVariants = None | list[MagnitudData] | MagnitudData | str
@@ -30,14 +34,19 @@ class MeteoGaliciaData:
 class WeatherData(TypedDict, total=False):
     meteogalicia: MeteoGaliciaData
     aemet: AemetFullData
-@dataclass
-class AemetMagnitud:
+
+
+class APIs(Enum):
+    METEOGALICIA = 'meteogalicia'
+    AEMET = 'aemet'
+
+
+class AemetMagnitud(BaseModel):
     hour: str | None
     value: str | None
     description: str | None
 
-@dataclass
-class AemetDayBase:
+class AemetDayBase(BaseModel):
     date: str | None
     sunrise: str | None
     sunset:str | None
@@ -49,9 +58,7 @@ class AemetDayBase:
     rain: list[AemetMagnitud]
     therm_sense: list[AemetMagnitud] | None
 
-
-@dataclass
-class AemetData:
+class AemetData(BaseModel):
     made_date: str
     village: str
     province:str
