@@ -31,6 +31,22 @@ async def validate_token(request: Request) -> bool:
     return False
 
 
+def get_weather_data(weather: WeatherExtractor) -> WeatherResponse:
+    weather_data = weather.read_last_saved_data(apis=[APIs.AEMET, APIs.METEOGALICIA])
+    aemet = weather_data.get("aemet")
+    meteogalicia = weather_data.get("meteogalicia")
+    if aemet is None or meteogalicia is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No hay información climatológica actualizada",
+            headers={"Retry-After": "600"},  # reintentar en 10 minutos
+        )
+    current = current_data(aemet["hourly"], meteogalicia)
+    return WeatherResponse(
+        meteogalicia=meteogalicia, aemet=aemet, **current.model_dump()
+    )
+
+
 @router.get("/", response_class=HTMLResponse)
 async def serve_page(
     request: Request, valid_token: Annotated[bool, Depends(validate_token)]
