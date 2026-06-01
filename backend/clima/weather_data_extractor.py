@@ -78,6 +78,7 @@ class GetMeteogaliciaData():
             None, si no devuelve la última información guardada de
             Metetogalicia.
         """
+
         with sqlite3.connect(self.meteogal_path/"meteogal.db") as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
@@ -105,6 +106,7 @@ class GetMeteogaliciaData():
             return True
 
         with sqlite3.connect(self.meteogal_path/"meteogal.db") as conn:
+            #Comprueba que la información ya está guardada
             row = conn.execute(
                 'SELECT id FROM climate_data WHERE timestamp = ?',
                 (data.timestamp,)
@@ -345,7 +347,7 @@ class GetAemetData():
         for key in self.links.keys():
             cached = self._read_file(f"{key}.json")
             if cached:
-                final_output[key] = loads(cached[-1])
+                final_output[key] = AemetData(**loads(cached[-1]))
             else:
                 final_output[key] = {}
         return final_output
@@ -398,7 +400,7 @@ class GetAemetData():
                 continue
 
             with open(file_path, "w", encoding="UTF-8") as file:
-                dump(asdict(d), file)
+                dump(d.model_dump(), file)
 
             file_paths.append(file_path)
 
