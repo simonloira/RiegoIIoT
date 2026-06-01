@@ -1,15 +1,14 @@
 import asyncio
-from json import dumps, loads
-from typing import Any
+from json import dumps
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from pydantic import ValidationError
 
-from backend.login import login
-from backend.history.activation_history import history, write_history
-import backend.clima.weather_manager as weather_manager
-import backend.history.history_manager as history_manager
-from backend.login.secure_token import check
-from backend.PLC import plc_manager
+from backend.history.history_manager import HistorySave, get_history_saver
+from backend.PLC.models import BasesTime
+from backend.PLC.plc_manager import PLCControl, get_plc
+from server.models import SocketMessageResponse, SocketRequest
 
 router = APIRouter()
 # Esto se usa para hacer broadcast del diccionario time_data y que llegue en
@@ -23,8 +22,10 @@ async def websocket_endpoint(
     plc: Annotated[PLCControl, Depends(get_plc)],
     history: Annotated[HistorySave, Depends(get_history_saver)],
 ) -> None:
+
     await websocket.accept()
-    history.save_client_status("Se ha conectado: ", websocket.client.host)
+    assert websocket.client, "Websocket.client es None"
+    history.save_client_status(websocket.client.host, "connected")
     connected_clients.add(websocket)
     try:
         await websocket.send_text(dumps({"timeZonesSecs": plc.TIME_DATA}))
@@ -85,25 +86,18 @@ async def broadcast(data: dict) -> None:
         connected_clients.remove(client)
 
 
-    if "act" in cmd:  # Botón de activación de x zona en index.html
-        #Refactorizando la activación
-        pass
-
-    elif cmd == "refresh_weather":  # Al actualizar la la página en index.html
-        print("Consiguiendo datos clima...")
-        weather_data = weather_manager.get_weather.read_last_saved_data(apis=["aemet", "meteogalicia"]) #weather_data = [True, [[aemet_7d, aemet_h], [meteogal]]] 
-        data_send = {"weatherData": weather_data}  #Envío [[aemet_7d, aemet_h], [meteogal]]
-
-    elif "change_zone_time" in cmd:
-        activation_time = int(client_data.get("t_activacion", ""))
-        zone = cmd.split("-")[1]
-
-        plc_manager.plc.save_time([activation_time, 2], f"T.Remote-{zone}")
-        zones_time_data = plc_manager.plc.TIME_DATA
-
-        data_send = {"timeZonesSecs": zones_time_data}
-        send_time = True
-    return data_send, [send_time, zones_time_data]
+def handle_zone_act(
+    request: SocketRequest, plc: PLCControl, history: HistorySave
+) -> SocketMessageResponse:
+def handle_time_zone(
+    request: SocketRequest, plc: PLCControl, history: HistorySave
+) -> SocketMessageResponse:
+MSG_ACTIONS_MAP = {
+    "activate-zone": handle_zone_act,
+    "change-zone-time": handle_time_zone,
+}
 
 
-
+def handle_client_messages(
+    client_json: str, plc: PLCControl, history: HistorySave
+) -> SocketMessageResponse:
