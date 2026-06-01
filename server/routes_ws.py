@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from backend.history.history_manager import HistorySave, get_history_saver
 from backend.PLC.models import BasesTime
 from backend.PLC.plc_manager import PLCControl, get_plc
-from server.models import SocketMessageResponse, SocketRequest
+from server.models import PLCDataResponse, SocketMessageResponse, SocketRequest
 
 router = APIRouter()
 # Esto se usa para hacer broadcast del diccionario time_data y que llegue en
@@ -48,18 +48,19 @@ async def websocket_endpoint(
 
             # Esperar mensaje del cliente
             try:
-                message = await asyncio.wait_for(websocket.receive_text(), timeout=0.5)
-                data_send, info_time_zone = handle_client_messages(
-                    message
+                msg = await asyncio.wait_for(
+                    websocket.receive_text(), timeout=0.5
                 )
-                send_time_data = info_time_zone[0] #info_time_zone = [send_time, zones_time_data]
-                if send_time_data:
+                print(msg)
+                response = handle_client_messages(msg, plc, history)
+                print("Response_client: ", response)
+                if response.broadcast:
                     print("Se envía timeZonesSecs")
                     # Envía el diccionario con los tiempos a todos los clientes
-                    await broadcast(client_resp)
+                    await broadcast(response.model_dump())
                 else:
-                    print(f"\nNo tendría que enviar timeZonesSecs: {client_resp}")
-                    await websocket.send_text(dumps(client_resp))
+                    print(f"\nNo tendría que enviar timeZonesSecs: {response}")
+                    await websocket.send_json(response.model_dump())
 
             except asyncio.TimeoutError:
                 pass
@@ -68,12 +69,16 @@ async def websocket_endpoint(
 
     except WebSocketDisconnect:
         print("Cliente desconectado")
-        history.save_client_status("Se ha desconectado: ", websocket.client.host)
+        history.save_client_status(websocket.client.host, "disconnected")
 
 
-async def broadcast(data: dict) -> None:
+def build_plc_data_resp(
+        plc: PLCControl, history:HistorySave
+    ) -> PLCDataResponse:
+
+async def broadcast(data: dict[str, int]) -> None:
     client: WebSocket
-    disconnected:list[WebSocket] = []
+    disconnected: list[WebSocket] = []
     for client in connected_clients:
         print("Se envía timeZonesSecs a todos")
         try:
@@ -101,3 +106,19 @@ MSG_ACTIONS_MAP = {
 def handle_client_messages(
     client_json: str, plc: PLCControl, history: HistorySave
 ) -> SocketMessageResponse:
+    try:
+        print(client_json)
+        # Mensajes recibidos desde el cliente
+        request = SocketRequest.model_validate_json(client_json)
+
+        print("Client_data: ", request)
+        print(f"Client_data.Comando: {request.command}")
+
+    except ValidationError as e:
+        print(e)
+        return SocketMessageResponse(
+            status="error",
+            event="unknown",
+            error_msg="Error validando el JSON",
+            broadcast=False,
+        )
