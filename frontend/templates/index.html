@@ -202,11 +202,11 @@
     </script>
 
     <script>//Representación de parámetros recibidos desde el servidor
-        function updateZoneTime(globalTimeData){ 
-            for(nombreZona of Object.keys(globalTimeData)){
+        function updateZoneTime(timeData){ 
+            for(nombreZona of Object.keys(timeData)){
                 // <label id="t-${nombreZona}">${time}</label>
                 let timeElement = document.getElementById(`t-${nombreZona}`);
-                timeElement.textContent = secondsToString(globalTimeData[nombreZona]);  
+                timeElement.textContent = secondsToString(timeData[nombreZona]);  
             }
         }
 
@@ -220,18 +220,13 @@
         //     }
         // }
 
-        function receiveTimeData(serverData, timeData){
+        function receiveTimeData(serverData){
             let receivedTimeZones = JSON.parse(sessionStorage.getItem("receivedTimeZones")) //La primera vez no existe, pero bueno, no da error si no existe
-            if (!Object.keys(serverData).includes("timeZonesSecs")){
-                console.log("No existe timeData")
-                return timeData //Si no se recibe en el JSON enviado desde el server una key que sea "timeZonesSecs" sale de la función
-            } //Podría poner lo contrario, es decir, que si existe que se ejecute lo que hay abajo y eliminar lo de arriba pero bueno, así queda más plano
-            let tempTimeZonesData = {};
+            let timeDataTemp = serverData["data"]["timeZonesSecs"]
             let timeString = {};
-            console.log("serverTimeZoneSecs receivedTimeData: ", serverData["timeZonesSecs"])
-            for(zone of Object.keys(serverData["timeZonesSecs"])){
-                tempTimeZonesData[zone] = serverData["timeZonesSecs"][zone];
-                timeString[zone] = secondsToString(serverData["timeZonesSecs"][zone]);
+            console.log("serverTimeZoneSecs receivedTimeData: ", timeDataTemp)
+            for(zone of Object.keys(timeDataTemp)){
+                timeString[zone] = secondsToString(timeDataTemp[zone]);
             }
             if (!receivedTimeZones){ //Si no se recibió el diccionario por defecto de time_zones
                 //Esto sólo se ejecuta cuando se abre la página, una vez abierta no se vuelve a ejecutar hasta que se vuelva a abrir (o bueno, recargar también)
@@ -239,10 +234,10 @@
                 sessionStorage.setItem("receivedTimeZones", true); //Se almacena que se recibió el diccionario por defecto para que no se vuelva a ejecutar este bloque
             }else{
                 console.log("receivedTimeZones receiveTimeData", receivedTimeZones)
-                updateZoneTime(tempTimeZonesData); //Se actualiza sólo el texto que muestra el tiempo de cada zona
+                updateZoneTime(timeDataTemp); //Se actualiza sólo el texto que muestra el tiempo de cada zona
             }
-            
-            return tempTimeZonesData
+            timeData = timeDataTemp
+            return timeDataTemp
         }
 
         function secondsToString(totalSeconds){
