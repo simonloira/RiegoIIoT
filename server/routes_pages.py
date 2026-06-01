@@ -59,6 +59,14 @@ async def render_history(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request=request, name="history.html")
 
 
+@router.get("/forecast-data")
+async def forecast_data(
+    request: Request,
+    weather: Annotated[WeatherExtractor, Depends(get_weather_extractor)],
+) -> WeatherResponse:
+    return get_weather_data(weather)
+
+
 @router.post("/login")
 async def login_for_access_token(
     form_data: LoginRequest, response: Response
