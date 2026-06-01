@@ -32,20 +32,10 @@ async def websocket_endpoint(
         data_send: dict
 
         while True:
-            estadosSistema_salidas_dirSalidas = [
-                plc.obtener_estados(),
-                plc.outputs_addresses,  # Cambia la apariencia de los botones de las zonas | Salida activada: color verde. Desactivada: color gris.
-            ]  # Estados del PLC
-
-            data_send = {
-                "logoConectado": plc.plc_client.is_connected(),
-                "entradas-salidas-dirSalidas": estadosSistema_salidas_dirSalidas,
-                "last-activation": history.history["last-activation"],
-            }
-
             # print(f"\nSending: {data_send}\n")
-            await websocket.send_text(dumps(data_send))
-
+            await websocket.send_json(
+                build_plc_data_resp(plc, history).model_dump()
+            )
             # Esperar mensaje del cliente
             try:
                 msg = await asyncio.wait_for(
@@ -75,6 +65,28 @@ async def websocket_endpoint(
 def build_plc_data_resp(
         plc: PLCControl, history:HistorySave
     ) -> PLCDataResponse:
+    status: Literal["success", "error"]
+    error_msg = None
+    event = "auto-refresh"
+    status = "success"
+    status_memories = plc.get_status_memories()
+    outputs = plc.plc_client.read_outputs()
+
+    if (status_memories is None) or (outputs is None):
+        status = "error"
+        error_msg = "Error leyendo el PLC, quizás está desconectado. " \
+        "Verifica la conexión de red y el estado del mismo."
+    return PLCDataResponse(
+        event=event,
+        status=status,
+        error_msg=error_msg,
+        plc_connected=plc.plc_client.is_connected(),
+        status_memories=status_memories,
+        outputs=outputs,
+        outputs_addresses=plc.outputs_addresses,
+        last_activation=history.history.last_activation
+    )
+
 
 async def broadcast(data: dict[str, int]) -> None:
     client: WebSocket
