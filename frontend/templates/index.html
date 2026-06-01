@@ -571,17 +571,26 @@
     </script>
 
     <script> //Enviar comandos al server
-        // function refreshWeather(){ tengo que hacer un fetch mejor en vez de hacer esto de pedirlo con comandos
-        //     // Se ejecuta al inicio
-        //     socket.send(JSON.stringify({ comando: "refresh_weather" }));
-        //     console.log("Weather refrescado ✅ (inicio)");
+        async function refreshWeather(){ 
+            const response = await fetch('/forecast-data', {
+                method: 'GET',
+            });
 
-        //     // Y luego cada 50 minutos
-        //     setInterval(() => {
-        //         socket.send(JSON.stringify({ comando: "refresh_weather" }));
-        //         console.log("Weather refrescado ✅ (intervalo)");
-        //     }, 50 * 60 * 1000);
-        // }
+            const data = await response.json();
+            
+            if (response.ok) {
+                console.log("Consiguiendo la información climatológica")
+                console.log(data)
+                const meteogaliciaData = data.meteogalicia;
+
+                addGaugeMagnitude(meteogaliciaData);
+                gaugeLevel();
+            }else{
+                console.log(data.detail)
+                //Tengo que meterle algo para que muestre un mensaje de error
+                //al cliente
+            }
+        }
 
         //ya no hace falta, ya está bien hecho desde el backend, pero me da pena borrarlo
         // Comprobación del token JWT 
