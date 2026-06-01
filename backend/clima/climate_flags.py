@@ -2,12 +2,15 @@ from datetime import datetime
 from json import load
 from os import getcwd
 
+from backend.clima.models import AemetData, MeteoGaliciaData, CurrentWeatherData
+
 PATH = getcwd()
 
-def is_night(current_hour, sunriset_time, sunset_time):
+def is_night(current_hour: int, sunriset_time:str, sunset_time:str) -> bool:
     sunrise_h = int(sunriset_time.split(":")[0])
     sunset_h = int(sunset_time.split(":")[0])
-    if current_hour > sunrise_h and current_hour < sunset_h:
+
+    if current_hour >= sunrise_h and current_hour <= sunset_h:
         return False
     return True
 
