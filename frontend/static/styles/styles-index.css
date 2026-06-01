@@ -648,26 +648,38 @@ main {
 
 /*--------------------------------------------------------------------------------------------------------*/
 
-
-/* Fondo overlay */
-.time-dialog-overlay {
+/* Dialog del selector de tiempo */
+.dialog-overlay {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background-color: rgba(0,0,0,0.4);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s ease;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
 }
-.time-dialog-overlay.visible {
-  opacity: 1;
-  pointer-events: auto;
+
+.dialog-overlay.visible {
+  display: flex;
+    animation: fadeIn 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+  align-items: center;
+    justify-content: center;
+}
+
+.dialog h3 {
+    font-size: 14px;
+    font-weight: 500;
+    color: black;
+    margin-bottom: 24px;
+    text-align: center;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
 }
 
 /* Dialog Material 3 Expressive */
-.time-dialog {
+.dialog {
   background-color: #ffffff;
   border-radius: 24px;
   box-shadow: 0px 16px 24px rgba(0,0,0,0.2);
@@ -678,6 +690,9 @@ main {
   align-items: center;
   animation: slideUp 0.3s ease;
   font-family: "Google Sans", Roboto, sans-serif;
+
+    position: relative;
+    border: none;
 }
 
 @keyframes slideUp {
@@ -1118,7 +1133,7 @@ nav li:hover {
 }
 
 
-#error {
+/* #error {
     border-radius: 1rem; 
     background: #c6d400;
     font-family: "JetBrains Mono", monospace;
@@ -1129,12 +1144,12 @@ nav li:hover {
     padding: 1rem;
     
     /* Centrado completo */
-    position: fixed;
+    /* position: fixed;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
     max-width: 500px;
-}
+} */
 
 
 /* Animaciones suaves */
@@ -1168,4 +1183,81 @@ nav li:hover {
 
 #well-level.nivel-bajo:hover, #well-level.error:hover {
     box-shadow: 0 12px 35px rgba(255, 0, 0, 0.959);
+}
+
+
+.error-dialog {
+    background: var(--md-sys-color-surface-container-lowest, #fffbfe);
+    max-width: 28rem;
+    width: 100%;
+    border-radius: 32px;
+    padding: 2rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    animation: dialogIn 300ms ease forwards;
+  }
+
+  @keyframes dialogIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+ 
+  .icon-cluster {
+    position: relative;
+    margin-bottom: 2rem;
+  }
+
+  .icon-main {
+    width: 6rem;
+    height: 6rem;
+    background: var(--md-sys-color-error, #b3261e);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .icon-main .material-symbols-outlined {
+    color: white;
+    font-size: 3rem;
+  }
+
+  .icon-badge {
+    position: absolute;
+    top: -0.25rem;
+    right: -0.25rem;
+    background: var(--md-sys-color-surface-container-lowest, #fffbfe);
+    border-radius: 50%;
+    padding: 0.25rem;
+  }
+
+  .icon-badge .material-symbols-outlined {
+    color: var(--md-sys-color-error, #b3261e);
+    font-size: 1.875rem;
+    display: block;
+  }
+
+  /* Tipografía */
+  .error-title {
+    font-size: 1.75rem;
+    line-height: 2.25rem;
+    font-weight: 400;
+    color: var(--md-sys-color-on-surface, #1c1b1f);
+    margin: 0 0 1rem 0;
+  }
+
+  .error-body {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--md-sys-color-on-surface-variant, #49454f);
+    margin: 0 0 2.5rem 0;
 }
