@@ -485,8 +485,6 @@
                     </div>
                 </div>`
             }
-            console.log(html)
-
             zonesContainer.innerHTML = html
         }
     </script>
@@ -529,22 +527,25 @@
 
         function addGaugeMagnitude(weatherData){
             const readingsContainer = document.getElementById("readings-container");
-            const nombresMagnitudes = ["temperature", "humidity"];
-            const totalMagnitudes = Object.keys(weatherData);
+            const magnitudes = {
+                "temp_15m":["Temperatura", "ºC", "temperature"],
+                "hum_rel":["Humedad", "%", "humidity"]
+            }
+            const dataDate = new Date(weatherData["timestamp"])
             let html = "";
             
-            for (let i = 0; i < nombresMagnitudes.length; i++){
-                let values = weatherData[totalMagnitudes[i]];
-                let title = values[0];
-                let value = values[1];
-                let unit = values[2];
+            for (let magnitude of Object.keys(magnitudes)){
+                let value = weatherData[magnitude];
+                let info = magnitudes[magnitude];
+                let title = info[0];
+                let unit = info[1];
                 hrTempValues.push(value);
                 
                 html += `
                     <div class="reading-item">
-                        <div id="gauge-${nombresMagnitudes[i]}">
+                        <div id="gauge-${info[2]}">
                             <div class="gauge-value">
-                                <span id="gauge-value-${nombresMagnitudes[i]}">${value + " " + unit}</span>
+                                <span id="gauge-value-${info[2]}">${value + " " + unit}</span>
                             </div>
                         </div>
                         <div class="gauge-label">${title}</div>
@@ -556,7 +557,7 @@
             }
             
             html += `<p id="info-updated-weather"> Información actualizada el: 
-                <span>${weatherData["date"]}</span>
+                <span>${formatDate(dataDate)}</span>
             </p>`
             
             readingsContainer.innerHTML = html
