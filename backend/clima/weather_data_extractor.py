@@ -159,7 +159,7 @@ class GetMeteogaliciaData():
                 bien se devuelve el objeto de la dataclass con los valores
                 asignados.
         """
-        if raw_data == {}:
+        if raw_data == {} or raw_data["lastData"] == []:
             return None
 
         # Asignación de fecha y corrección a UTC_SPAIN
