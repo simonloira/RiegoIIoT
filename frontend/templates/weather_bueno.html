@@ -279,11 +279,11 @@
             return icons
         }
 
-        function renderSunriseSunsetSVG(){
+        function renderSunriseSunsetSVG(sunriseHour, sunsetHour){
             const svg = document.getElementById("sunrise-svg");
-            console.log(sunrise, sunset)
-            let percent_sunrise = (sunrise * 100) / 24; //porcentaje de día que transcurre hasta que amanece
-            let percent_sunset = (sunset * 100) / 24; //porcentaje de día que transcurre hasta que anochece
+            console.log(sunriseHour, sunsetHour)
+            let percent_sunrise = (sunriseHour * 100) / 24; //porcentaje de día que transcurre hasta que amanece
+            let percent_sunset = (sunsetHour * 100) / 24; //porcentaje de día que transcurre hasta que anochece
             let dayDuration = percent_sunset-percent_sunrise;
             svg.innerHTML = `
                             <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
@@ -309,29 +309,31 @@
                             </svg>`
         }
         
-        function renderHourlyForecast(icons) {
+        function renderHourlyForecast(dayIndex, icons, aemetHData, hourIndex) {
             const hourly = document.getElementById("hourly-forecast");
-            for(let i = dayIndex; i < aemet_h["dia"].length; i++){
+            
+            let html = ''
+            for(let i = dayIndex; i < aemetHData.days.length; i++){
                 const today = date.getDay(); //Es el número de la semana -1
-                let sunrise = parseInt(aemet_h["dia"][i]["@orto"].split(":")[0]);
-                let sunset = parseInt(aemet_h["dia"][i]["@ocaso"].split(":")[0]);
+                let sunrise = parseInt(aemetHData.days[i].sunrise.split(":")[0]);
+                let sunset = parseInt(aemetHData.days[i].sunset.split(":")[0]);
                 let day = days[(today + i - dayIndex) % 7];
                 if (today+i-dayIndex == today){
                     day = "Hoy";
                 }
-                for (let j = 0; j < aemet_h["dia"][i]["temperatura"].length-hourIndex; j++){
-                    console.log(aemet_h["dia"][i]["temperatura"].length-hourIndex)
-                    let hour = aemet_h["dia"][i]["temperatura"][hourIndex+j]["@periodo"];
-                    let temperature = aemet_h["dia"][i]["temperatura"][hourIndex+j]["#text"];
-                    let skyStatus = aemet_h["dia"][i]["estado_cielo"][hourIndex+j]["@descripcion"];
-                    let rain = aemet_h["dia"][i]["precipitacion"][hourIndex+j]["#text"];
+                for (let j = 0; j < aemetHData.days[i].temperature.length-hourIndex; j++){
+                    console.log(aemetHData.days[i].temperature.length-hourIndex)
+                    let hour = aemetHData.days[i].temperature[hourIndex+j].hour;
+                    let temperature = aemetHData.days[i].temperature[hourIndex+j].value;
+                    let skyStatus = aemetHData.days[i].sky_status[hourIndex+j].description;
+                    let rain = aemetHData.days[i].rain[hourIndex+j].value;
                     
                     if ((hour > sunset) ||  (hour < sunrise)){
                         skyStatus += " noche"
                     }
                     
                     let iconName = icons[skyStatus];
-                    hourly.innerHTML += `<div class="hour-item" data-title="${skyStatus}">
+                    html += `<div class="hour-item" data-title="${skyStatus}">
                                             <div class="hour-time">${temperature}°</div> 
                                             <img src="static/weather_icons/static/${iconName}" class="sky-status-icon" alt="${skyStatus}" width="40">
                                             <div class="hour-time">${rain}mm</div>
@@ -341,42 +343,34 @@
                 }
                 hourIndex = 0; //Se pasa a coger la info de la primera hora del día siguiente    
             }
-            
+            hourly.insertAdjacentHTML('beforeEnd', html)     
         }
         
-        function renderWeeklyForecast(icons) {
+        function renderWeeklyForecast(dayIndex, icons, aemet7dData) {
             const daily = document.getElementById("daily-forecast");
             const today = date.getDay(); //índice del día de la semana (domingo: 0, lunes:1, martes:2, miércoles: 3, ..., sábado: 6)
-            
+            console.log(aemet7dData)
             let numMonth = date.getMonth();
             let numDayMonth = date.getDate();
             let totalDaysCurrMonth = numDaysMonth[numMonth];
+            let html = "";
             let init;
             if (dayIndex > 0){
                 init = dayIndex;
             }else{
                 init = dayIndex + 1;
             }
-            for(let numDia = init; numDia < aemet_7d["dia"].length; numDia++){ //i inicializa en 1 porque el día actual (0) me da problemas con los periodos
+            
+            for(let numDia = init; numDia < aemet7dData.days.length; numDia++){ //i inicializa en 1 porque el día actual (0) me da problemas con los periodos
                 let day = days[(today+numDia)%7]; //%7 para limitar el número de días a 7 si no IndexError
-                let maxTemperature = aemet_7d["dia"][numDia]["temperatura"]["maxima"];
-                let minTemperaure = aemet_7d["dia"][numDia]["temperatura"]["minima"];
+                let maxTemperature = aemet7dData.days[numDia].max_temp;
+                let minTemperaure = aemet7dData.days[numDia].min_temp;
                 let rainProb = "";
                 let skyStatus = "";
                 console.log(dayIndex)
                 //Los días más recientes me traen un array ya que tienen diferentes periodos de tiempo, los días más alejados sólo traen un periodo sin array
-                if (Array.isArray(aemet_7d["dia"][numDia]["prob_precipitacion"])){
-                    rainProb = aemet_7d["dia"][numDia]["prob_precipitacion"][0]["#text"]; //0 porque el periodo 00-24 (todo el día) es el primero en la lista
-                }else{
-                    rainProb = aemet_7d["dia"][numDia]["prob_precipitacion"];
-                } 
-                if (Array.isArray(aemet_7d["dia"][numDia]["estado_cielo"])){
-                    skyStatus = aemet_7d["dia"][numDia]["estado_cielo"][0]["@descripcion"]; //0 porque el periodo 00-24 (todo el día) es el primero en la lista
-                }else{ 
-                    skyStatus = aemet_7d["dia"][numDia]["estado_cielo"]["@descripcion"];
-                }
-
-                
+                rainProb = aemet7dData.days[numDia].rain[0].value; //0 porque el periodo 00-24 (todo el día) es el primero en la lista
+                skyStatus = aemet7dData.days[numDia].sky_status[0].description;
                 
                 let iconName = icons[skyStatus];
                 numDayMonth += 1
@@ -384,7 +378,7 @@
                     numMonth = (numMonth + 1) % 12
                     numDayMonth = 1
                 }
-                daily.innerHTML += `<div class="day-item" data-title="${skyStatus}">
+                html += `<div class="day-item" data-title="${skyStatus}">
                                         <div class="day-temp">${maxTemperature}°</div>
                                         <div class="day-temp" style="font-size: 0.875rem; opacity: 0.7;">${minTemperaure}°</div>
                                         <img src="static/weather_icons/animated/${iconName}" class="day-icon" alt="${skyStatus}" width="80">
@@ -394,14 +388,15 @@
                                     </div>`
                    
             }
+            daily.innerHTML = html;
             
         }
         
-        function moveCelestialBody(){
+        function moveCelestialBody(sunriseHour, sunsetHour){
             const now = new Date();
             const currentHour = hoursToDecimal(now.getHours(), now.getMinutes());
 
-            const isDay = currentHour >= sunrise && currentHour <= sunset;
+            const isDay = currentHour >= sunriseHour && currentHour <= sunsetHour;
 
             const circle = document.getElementById("celestial-body");
 
@@ -422,13 +417,13 @@
             }
 
             // mapea hora actual → posición X a lo largo del arco (de 36.73 a 82.7)
-            const xStart = (sunrise * 100) / 24; //Primer punto mostrado en porcentaje del contenedor del svg
-            const xEnd = (sunset * 100) / 24; //Último punto mostrado en porcentaje del contenedor del svg
+            const xStart = (sunriseHour * 100) / 24; //Primer punto mostrado en porcentaje del contenedor del svg
+            const xEnd = (sunsetHour * 100) / 24; //Último punto mostrado en porcentaje del contenedor del svg
             const xRange = xEnd - xStart;
-            console.log("fiopvjofp", sunrise, sunset, currentHour)
+            console.log("fiopvjofp", sunriseHour, sunsetHour, currentHour)
             
             let t; //Incremento de coordenadas respecto al punto de inicio
-            t = (currentHour - sunrise) / (sunset - sunrise);
+            t = (currentHour - sunriseHour) / (sunsetHour - sunriseHour);
             console.log(t)
             
             const x = xStart + t * xRange;
@@ -440,21 +435,16 @@
         }
         
 
-        function testmoveCelestialBody(){
+        function testmoveCelestialBody(sunriseHour, sunsetHour){
             const now = new Date();
             const currentHour = hoursToDecimal(now.getHours(), now.getMinutes());
-
-            
-
             const circle = document.getElementById("celestial-body");
 
-            
-
             // mapea hora actual → posición X a lo largo del arco (de 36.73 a 82.7)
-            const xStart = (sunrise * 100) / 24; //Primer punto mostrado en porcentaje del contenedor del svg
-            const xEnd = (sunset * 100) / 24; //Último punto mostrado en porcentaje del contenedor del svg
+            const xStart = (sunriseHour * 100) / 24; //Primer punto mostrado en porcentaje del contenedor del svg
+            const xEnd = (sunsetHour * 100) / 24; //Último punto mostrado en porcentaje del contenedor del svg
             const xRange = xEnd - xStart;
-            console.log("fiopvjofp", sunrise, sunset, currentHour)
+            console.log("fiopvjofp", sunrise, sunsetHour, currentHour)
             
             let t; //Incremento de coordenadas respecto al punto de inicio
             
@@ -465,8 +455,8 @@
             const interval = setInterval(() => {
                 
                 const currentHour = i + j / 60;
-                t = (currentHour - sunrise) / (sunset - sunrise);
-                const isDay = currentHour >= sunrise && currentHour <= sunset;
+                t = (currentHour - sunriseHour) / (sunsetHour - sunriseHour);
+                const isDay = currentHour >= sunriseHour && currentHour <= sunsetHour;
                 // define color sol/luna
             if (isDay) {
                 circle.innerHTML = `<circle id="main" cx="50" cy="50" r="5" fill="#FFAE00"></circle>` // sol
@@ -503,19 +493,19 @@
             return hours + minutes/60
         }
 
-        function createRainSVG(){
+        function createRainSVG(meteogaliciaData){
             const rainElement = document.getElementById("rain");
             // const percent = ((parseFloat(meteogalicia["Precipitación"][1]) * 6) * 100) / 50; 6: porque el dato de lluvia es cada 10 min, 50 ES 50 mm/h
-            const percent = ((parseFloat(meteogalicia["lluvia_acumulada"][1])) * 100) / 60 //50 ES 50 mm/h
-            console.log(meteogalicia["lluvia_acumulada"][1])
-            console.log("perc:",percent, meteogalicia["lluvia_acumulada"][1])
+            const percent = ((parseFloat(meteogaliciaData.accum_rain)) * 100) / 60 //50 ES 50 mm/h
+            console.log(meteogaliciaData.accum_rain)
+            console.log("perc:",percent, meteogaliciaData.accum_rain)
             const svg = waterSVG(percent)
             rainElement.innerHTML += svg;
         }
 
-        function createHumiditySVG(){
+        function createHumiditySVG(meteogaliciaData){
             const humidityElement = document.getElementById("humidity");
-            const svg = waterSVG(meteogalicia["Humidade Relativa"][1])
+            const svg = waterSVG(meteogaliciaData.hum_rel)
             humidityElement.innerHTML += svg;
         }
 
@@ -541,7 +531,7 @@
 
     <script>
         // Función para actualizar el widget UV
-        function updateUVWidget() {
+        function updateUVWidget(uvIndex) {
             const dots = document.querySelectorAll('.uv-dot');
             const uvValue = document.getElementById('uv-value');
             const uvLabel = document.getElementById('uv-label');
@@ -583,7 +573,6 @@
                 }
             });
         }
-        
         
         // Test: cambiar UV cada 3 segundos
         
