@@ -64,34 +64,93 @@
                 border: none;
                 text-align: center;
                 padding: 1rem;
+            }
+
+            /* Material Design */
+            .md-input-container {
+                position: relative;
+                width: 100%;
+                margin-bottom: 0.5rem;
+            }
+
+            .md-input {
+                width: 100%;
+                box-sizing: border-box;
+                padding: 0.5rem;
+                font-size: 1rem;
+                border: 1px solid #79747E;
+                border-radius: 6px;
+                background: transparent;
+                outline: none;
+                transition: all 0.15s ease-in-out;
+                margin-bottom: 0.9em; 
+            }
+
+            .md-input:focus {
+                border-color: rgb(50, 177, 0);
+                /* En lugar de border-width: 2px, usamos sombra interna */
+                box-shadow: 0 0 0 1px rgb(50, 177, 0); 
+                /* El padding se queda quieto en 0.5rem */
                 
             }
 
-            md-checkbox {
-                --md-checkbox-outline-color: #1fa051; 
-                --md-checkbox-hover-outline-color: #1976D2; 
-                --md-sys-color-primary: #00aa33;
+            .md-label {
+                position: absolute;
+                left: 0.5rem;
+                top: 0.5rem;
+                color: #49454F;
+                background: white;
+                padding: 0 4px;
+                pointer-events: none;
+                transition: 0.2s ease all;
             }
 
-            md-filled-button{
-                --md-filled-button-container-color: rgb(50, 177, 0);
-                --md-filled-button-label-text-color: rgb(255, 255, 255);
+            /* Floating Label */
+            .md-input:focus ~ .md-label,
+            .md-input:not(:placeholder-shown) ~ .md-label {
+                top: -0.5rem;
+                left: 0.8rem;
+                font-size: 0.75rem;
+                color: rgb(50, 177, 0);
+            }
+
+            .md-button {
+                width: 100%;
+                background: #3B6D11;
+                color: white;
+                border: none;
+                border-radius: 100px; /* Estilo píldora de Material 3 */
+                padding: 0.75rem 1.5rem;
+                font-size: 1rem;
+                font-weight: 500;
+                cursor: pointer;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+                transition: background-color 0.2s;
+            }
+
+            .md-button:active {
+                background-color: rgb(35, 125, 0);
             }
         </style>
-
     </head>
+
     <body>
         <main>
             <form class="login-window" onsubmit="handleLogin(event)">
-                <h1 id="title" style="font-family: Roboto; margin-top: 0;">Riego automático</h1>
-                <md-outlined-text-field id="user-input" label="Usuario" type="text" name="username" 
-                    autocomplete="username" required style="width: 100%; padding: 6; margin-bottom: 0.9em;">
-                </md-outlined-text-field>
-                <md-outlined-text-field id="password-input" label="Contraseña" type="password" name="password" autocomplete="current-password" required
-                    style="width: 100%; padding: 6; margin-bottom: 0.9em; border-radius: 6px; ">
-                </md-outlined-text-field>
-                <md-filled-button id="enter" type="submit">Entrar</md-filled-button>
-                <p id = "login-message"></p>
+                <div class="md-input-container">
+                    <input type="text" id="user-input" class="md-input" placeholder=" " 
+                            name="username" autocomplete="username" required>
+                    <label class="md-label" for="user-input">Usuario</label>
+                </div>
+
+                <div class="md-input-container">
+                    <input type="password" id="password-input" class="md-input" 
+                            name="password" placeholder=" " autocomplete="current-password" required>
+                    <label class="md-label" for="password-input">Contraseña</label>
+                </div>
+
+                <button class="md-button" id="enter" type="text">Entrar</button>
+                <p id = "login-message" hidden></p>
             </form>
 
             <dialog id="error" style="justify-content: center;"></dialog>
