@@ -309,24 +309,25 @@
                             </svg>`
         }
         
-        function renderHourlyForecast(dayIndex, icons, aemetHData, hourIndex) {
+        function renderHourlyForecast(startDayIndex, icons, aemetHData, hourIndex) {
             const hourly = document.getElementById("hourly-forecast");
-            
+            const today = date.getDay(); //Es el número de la semana -1
             let html = ''
-            for(let i = dayIndex; i < aemetHData.days.length; i++){
-                const today = date.getDay(); //Es el número de la semana -1
-                let sunrise = parseInt(aemetHData.days[i].sunrise.split(":")[0]);
-                let sunset = parseInt(aemetHData.days[i].sunset.split(":")[0]);
-                let day = days[(today + i - dayIndex) % 7];
-                if (today+i-dayIndex == today){
+            for(let dayIndex = startDayIndex; dayIndex < aemetHData.days.length; dayIndex++){
+                let dayData = aemetHData.days[dayIndex];
+                let sunrise = parseInt(dayData.sunrise.split(":")[0]);
+                let sunset = parseInt(dayData.sunset.split(":")[0]);
+                let day = days[(today + dayIndex - startDayIndex) % 7];
+                
+                if (today + dayIndex - startDayIndex == today){
                     day = "Hoy";
                 }
-                for (let j = 0; j < aemetHData.days[i].temperature.length-hourIndex; j++){
-                    console.log(aemetHData.days[i].temperature.length-hourIndex)
-                    let hour = aemetHData.days[i].temperature[hourIndex+j].hour;
-                    let temperature = aemetHData.days[i].temperature[hourIndex+j].value;
-                    let skyStatus = aemetHData.days[i].sky_status[hourIndex+j].description;
-                    let rain = aemetHData.days[i].rain[hourIndex+j].value;
+               
+                for (let i = hourIndex; i < dayData.temperature.length; i++){
+                    let hour = dayData.temperature[i].hour;
+                    let temperature =dayData.temperature[i].value;
+                    let skyStatus = dayData.sky_status[i].description;
+                    let rain =dayData.rain[i].value;
                     
                     if ((hour > sunset) ||  (hour < sunrise)){
                         skyStatus += " noche"
