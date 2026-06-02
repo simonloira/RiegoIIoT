@@ -228,35 +228,48 @@
        </section>
     </main>
     
-    
     <script>
-        const skyStatusIndex = {{sky_status_index_day | tojson}};
-        const dayIndex = skyStatusIndex[2];
-        console.log("dayindex", dayIndex)
-        let hourIndex = skyStatusIndex[3];
+        async function refreshWeather(){ 
+            const response = await fetch('/forecast-data', {
+                method: 'GET',
+            });
 
-        const weatherData = JSON.parse(localStorage.getItem("weatherData"));
-        const aemet_7d = weatherData[0][0];
-        const aemet_h = weatherData[0][1];
-        const meteogalicia = weatherData[1][0];
-
-        let sunrise = aemet_h["dia"][dayIndex]["@orto"].split(":")
-        let sunset = aemet_h["dia"][dayIndex]["@ocaso"].split(":")
+            const data = await response.json();
+            
+            if (response.ok) {
+                const aemet7d = data.aemet["7d"];
+                const aemetH = data.aemet.hourly;
+                const meteogalicia = data.meteogalicia;
+                const dayIndex = data.index_day;
+                const hourIndex = data.index_hour;
+    
+                let sunrise = aemetH.days[dayIndex].sunrise.split(":")
+                let sunset = aemetH.days[dayIndex].sunset.split(":")
         sunrise = hoursToDecimal(parseInt(sunrise[0]), parseInt(sunrise[1])); // 8:49
         sunset = hoursToDecimal(parseInt(sunset[0]), parseInt(sunset[1])); // 19:51
+                
+                renderSunriseSunsetSVG(sunrise, sunset);
+                moveCelestialBody(sunrise, sunset);
+                createHumiditySVG(meteogalicia);
+                createRainSVG(meteogalicia);
+                loadIcons().then(icons => {
+                    renderHourlyForecast(dayIndex, icons, aemetH, hourIndex)
+                    renderWeeklyForecast(dayIndex, icons, aemet7d)
+                }
+                );
+                
+            }else{
+                showError("server-history", "Error de conexión con el servidor");
+                showError("logo-history", "Error de conexión con el PLC");
+            }
+        }
+    </script>
+
+    <script>
         const days = ["Dom", "Lun", "Mar", "Miér", "Jue", "Vie", "Sáb"];
         const numDaysMonth = [31,28,31,30,31,30,31,31,30,31,30,31];
         const date = new Date()
-        renderSunriseSunsetSVG();
-        moveCelestialBody();
-        createHumiditySVG();
-        createRainSVG();
-        loadIcons().then(icons => {
-            renderHourlyForecast(icons)
-            renderWeeklyForecast(icons)
-        }
-        );
-        
+        refreshWeather()
 
         
         async function loadIcons(){
