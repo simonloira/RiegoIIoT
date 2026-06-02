@@ -641,8 +641,9 @@
         
         
         function sendZoneTime(nombreZona, tiempoActivacion){
-            socket.send(JSON.stringify({comando: "change_zone_time-"+nombreZona,
-                                        t_activacion: tiempoActivacion,
+            socket.send(JSON.stringify({command: "change-zone-time",
+                                        zone: nombreZona,
+                                        act_time: tiempoActivacion,
             }))
         }
 
@@ -652,6 +653,10 @@
             const buttonsSpace = document.getElementById("but-" + nombreZona)
             buttonsSpace.classList = "loading"
             // lastOutputsState = estadosSalidas; Ya no hace falta, no me acuerdo por qué lo comenté pero bueno, ir va así //Se guarda el estado actual de las salidas para comprobar en el futuro qué zona cambió de estado
+            socket.send(JSON.stringify({command: "activate-zone",
+                                        zone: nombreZona,
+                                        act_time: tiempoActivacion,
+            }))
             closeDialog("confirm-zone-activation");
         }
 
