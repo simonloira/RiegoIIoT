@@ -265,25 +265,30 @@
             return hours + ":" + minutes + ":" + seconds
         }
 
-        function updateLastActivationHistory(serverData){
-            console.log(serverData)
-            if (!serverData["last-activation"]){
-                return
+        function formatDate(date){
+            let options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour:'numeric', minute:'numeric', second:'numeric'};
+            return date.toLocaleDateString("es-ES", options)
+        }
+
+        function updateLastActivationHistory(lastActivationData){
+            if(!lastActivationData) return
+            const msgMaps = {
+                'start': 'Activada la zona: ',
+                'manual_stop': 'Detenida manualmente la zona: ',
+                'stop': 'Terminó de regarse la zona: '
             }
-            if (serverData["last-activation"].length == 0){
-                return
-            }
+
             const detailedInfElement = document.getElementById('detailed-information');
             const lastActivationElement  = document.getElementById('last-activation');
-            const date = serverData["last-activation"][0];
-            const message = serverData["last-activation"][1];
-            const minute = serverData["last-activation"][2][1];
-            const second = serverData["last-activation"][2][2];
-            const newText = `🌿 Fecha: ${date} \\A \\A ${message}`;
+            const date = new Date(lastActivationData.timestamp*1000);
+            const message = msgMaps[lastActivationData.event] + lastActivationData.zone
+            
+            const time = secondsToString(lastActivationData.duration);
+            const newText = `🌿 Fecha: ${formatDate(date)} \\A \\A ${message}`;
             detailedInfElement.classList.add("filled");
             lastActivationElement.classList.add("filled");
             detailedInfElement.style.setProperty('--detailed-information', `'${newText}'`);
-            lastActivationElement.style.setProperty('--activation-time', `'✅ ${minute}min ${second}s'`);
+            lastActivationElement.style.setProperty('--activation-time', `'✅ ${time}'`);
         }
         
       //Estado actual de conexión del PLC es llamada cuando el cliente recibe el estado de conexión del PLC LOGO!
