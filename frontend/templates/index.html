@@ -36,12 +36,12 @@
         <main>
             <section class="home-window">
                 <h1>Inicio</h1>
-                <div id="status-automatic-irrigation">
+                <div id="status-automatic-irrigation" class="unknown-status">
                     <h3>Estado actual del riego:</h3>
                     <p id="status-irrigator">No hay datos</p>
                     <p id="active-zones"></p>
                 </div>
-                <div id="well-level" class="unknown">
+                <div id="well-level" class="unknown-status">
                     <h3>Nivel del pozo</h3>
                     <p id="well-status-text">No hay datos</p>
                     <aside id="tip-message">
@@ -58,7 +58,7 @@
                         <div class="status-text">El LOGO! no está conectado</div>
                     </div>
                     <div class="action-buttons">
-                        <a href="{{ url_for('static', path='/templates/history.html') }}"  class="btn-primary">Ver Historial</a>
+                        <a href="/historial"  class="btn-primary">Ver Historial</a>
                         <a href="/prevision" class="btn-secondary">El Tiempo</a>
                     </div>
                 </div>
@@ -170,17 +170,17 @@
             }
             socket = new WebSocket(`ws://${window.location.hostname}:8000/ws`);
 
-        socket.onopen = () => {
-            const serverElemet = document.getElementById("status-server");
-            serverElemet.innerHTML = `<div class="material-symbols-outlined" style="color: green;font-variation-settings: 'FILL' 1, 'wght'1000, 'GRAD' 200, 'opsz' 24;">android_wifi_4_bar</div>
-                                    <div class="status-text">Servidor conectado</div>
-                                    <div class="status-time">${new Date(Date.now()).toLocaleString()}</div>`
-            
-            sessionStorage.setItem("receivedTimeZones", JSON.stringify(false))
+            socket.onopen = () => {
+                const serverElemet = document.getElementById("status-server");
+                serverElemet.innerHTML = `<div class="material-symbols-outlined" style="color: green;font-variation-settings: 'FILL' 1, 'wght'1000, 'GRAD' 200, 'opsz' 24;">android_wifi_4_bar</div>
+                                        <div class="status-text">Servidor conectado</div>
+                                        <div class="status-time">${new Date(Date.now()).toLocaleString()}</div>`
+                
+                sessionStorage.setItem("receivedTimeZones", JSON.stringify(false))
 
                 // checkJWTToken()
-            refreshWeather()
-        };
+                refreshWeather()
+            };
             
             socket.onmessage = (e) => {
                 const eventsMap = {"auto-refresh": refreshPLCData, 
@@ -188,11 +188,11 @@
                                    "change-zone-time": receiveTimeData}
                 const data = JSON.parse(e.data);
                 const msg = document.getElementById("error-msg");
-            console.log(data)
+                console.log(data)
 
                 if (data.event && data.status == 'success'){
                     closeDialog('error')
-                document.querySelector("body").style.filter = "none";
+                    document.querySelector("body").style.filter = "none";
                     console.log(eventsMap[data.event])
                     if (eventsMap[data.event] == undefined) return
                     eventsMap[data.event](data)
@@ -205,7 +205,7 @@
                 }
                 // timeData = receiveTimeData(data, timeData) //Por defecto es igual al diccionario del servidor
                 // console.log("timeData socket.onmessage: ", timeData)  
-        }
+            }
             
             socket.onclose = () => {
                 socket = null;
@@ -309,11 +309,13 @@
                                     `
         }
 
-        function changeButtonAppareance(estadosBools, direccionesSalidas){ //Cambia la visualización del botón correspondiente a cada zona
+        function changeButtonAppareance(estadosBools, direccionesSalidas){ //Cambia la visualización del botón correspondiente a cada zona                      
             //------------------------------------------------------Variables globales: ---------------------------------------------------------------------//
             //lastOutputsState -> Almacena el último estado de las salidas. En esta función se cambia su estado y también en activaciónZona().               //
             //                    Sirve para saber qué zona varió su estado y cambiar la apariencia del botón correspondiente                                //
             //-----------------------------------------------------------------------------------------------------------------------------------------------//
+            if(!direccionesSalidas || !estadosBools) return
+   
             const zonesCard = document.querySelectorAll('.zone-card'); //Cojo todas las tarjetas con la clase .zona-card (dentro de ese elemento está el botón)
             const zones = Object.keys(direccionesSalidas);
  
@@ -358,41 +360,26 @@
 
         }
         
-        function changeStatusIrrigator(connectedLogo, estadosSalidas, estadosSistema){ //Cambia la visualización de la tarjeta del riego
-            const estadoText = document.getElementById("status-irrigator");
-            const estadoElement = document.getElementById("status-automatic-irrigation");
-
-            estadoElement.classList.remove('raining', 'active', 'idle', 'unknown-status');
-            if (!connectedLogo){
-                estadoElement.classList.add("unknown-status")
-                estadoText.textContent = "No hay datos";
-                return //No hay datos porque PLC desconectado
-            }
-      
-            if (estadosSistema["Lluvia"]){
-                estadoElement.classList.add("raining")
-                estadoText.textContent = "Lluvia";
-                return
-            }
-            for (estadoSalida of estadosSalidas){
-                if(estadoSalida){
-                    estadoText.textContent = "Activo";
-                    estadoElement.classList.add("active")
-                    return
-                }
-            }
-            estadoElement.classList.add("idle")
-            estadoText.textContent = "Inactivo";
-        }
-
-        function activeZones(estadosSalidas, direccionesSalidas, estadosSistema){ //Muestra las zonas que están regándose en la tarjeta del riego
+        function activeZones(connectedLogo, estadosSalidas, direccionesSalidas, estadosSistema){ //Muestra las zonas que están regándose en la tarjeta del riego
+            // y cambia la visualización de la tarjeta del riego
             //estadosSalidas: Es un array recibido desde el server  con el estado de las salidas fïsicas del LOGO!: Ej.: [false, false, false, false]
             //direccionesSalidas: es un diccionario recibido desde el server con la estructura: "zona": [ByteIndex, bitIndex] 
             //El byte de las salidas es el byte 0 ya que sólo tiene 4 salidas físicas el LOGO! (4 bits) pero bueno, lo dejo así por si se quiere escalar
-            let activeZones = []; 
+            const estadoText = document.getElementById("status-irrigator");
+            const estadoElement = document.getElementById("status-automatic-irrigation");
             const activeZonesElement = document.getElementById("active-zones");
+            let activeZones = []; 
 
+            estadoElement.classList.remove('raining', 'active', 'idle', 'unknown-status');
+            if (!connectedLogo || !direccionesSalidas || !estadosSalidas || !estadosSistema){
+                estadoElement.classList.add("unknown-status")
+                estadoText.textContent = "No hay datos";
+                activeZonesElement.textContent = "";
+                return //No hay datos porque PLC desconectado
+            }
             if (estadosSistema["Lluvia"]){
+                estadoElement.classList.add("raining")
+                estadoText.textContent = "Lluvia";
                 activeZonesElement.textContent = "No se regará en modo automático";
                 return
             }
@@ -400,16 +387,21 @@
             for (nombreZona of Object.keys(direccionesSalidas)){
                 //En el caso de escalar el sistema con más salidas (más de 7 salidas) meter otro bucle for i desde 0 hasta direccionesSalidas[nombreZona].length 
                 let bitSalida = direccionesSalidas[nombreZona][1]; 
-                if (estadosBools[bitSalida]){ //
+                if (estadosSalidas[bitSalida]){ //
                     activeZones.push(nombreZona);
+                    estadoText.textContent = "Activo";
+                    estadoElement.classList.add("active")
                 }
             }
             //Se escriben las zonas activas en la tarjeta de riego
             
             if (activeZones.length > 0){
                 activeZonesElement.textContent = "Zona(s) " + activeZones.join(", ");
+                return
             }
-
+            estadoElement.classList.add("idle")
+            estadoText.textContent = "Inactivo";
+            activeZonesElement.textContent = "";
         }
         
         function changeStatusWell(connectedLogo, estadosSistema, estadosSalidas) { //Cambia la visualización de la tarjeta de nivel del pozo
@@ -420,8 +412,7 @@
 
             // Borrar todas las clases de estado anteriores
             wellSign.classList.remove('nivel-alto', 'nivel-medio', 'nivel-bajo', 'error', 'unknown-status');
-
-            if (!connectedLogo){
+            if (!connectedLogo || !estadosSalidas || !estadosSistema){
                 wellSign.classList.add('unknown-status');
                 wellStatusText.textContent = 'No hay datos';
                 tipText.textContent = "El PLC está desconectado"
@@ -442,7 +433,7 @@
                 tipText.textContent = "La bomba no funcionará."
             }
             else if (!estadosSistema["SistemaEstable"]) {
-                // Nivel bajo
+               // Nivel bajo
                 wellSign.classList.add('nivel-bajo');
                 wellStatusText.textContent = 'Bajo';
                 tipText.textContent = "Hasta que suba el nivel no se usará el pozo"
@@ -467,6 +458,7 @@
             const zonesContainer = document.getElementById("control-zones");
             const nombresZonas = Object.keys(timeData);
             let html = ""
+    
             for (let i = 0; i < nombresZonas.length; i++){
                 let nombreZona = nombresZonas[i];
                 let time = timeData[nombreZona];
@@ -653,6 +645,7 @@
         }
 
         function  zoneActivationConfirmed(nombreZona){
+            if (navigator.vibrate) window.navigator.vibrate([20]);
             let tiempoActivacion = timeData[nombreZona]; //timeData variable global, objeto con los datos de tiempo por zonas
             // console.log(tiempoActivacion)
             const buttonsSpace = document.getElementById("but-" + nombreZona)
@@ -671,6 +664,7 @@
             const confirmButton = document.getElementById('confirm-zone');
             confirmButton.dataset.zone = nombreZona;
             openDialog("confirm-zone-activation");
+            if (navigator.vibrate) window.navigator.vibrate([20, 100, 20]);
         }
 
         // function desactivaciónZona(nombreZona, tiempo){
