@@ -453,7 +453,7 @@ body {
 
 
 
-.widget.uv-widget {
+.widget.uv-max {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -554,7 +554,7 @@ body {
     }
 }
 
-.sunrise-widget {
+.widget.sunrise {
     position: relative;
 }
 
@@ -565,7 +565,7 @@ body {
     font-size: 1.3rem;
 }
 
-#humidity{
+.widget.humidity{
     height:250px
 }
 

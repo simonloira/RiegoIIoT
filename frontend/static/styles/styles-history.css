@@ -2,7 +2,7 @@ body {
     background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
     margin: 0;
     padding: 20px;
-    font-family: 'Roboto', sans-serif;
+    font-family: 'anthropicSans', 'Hanken Grotesk', sans-serif;
     min-height: 100vh;
     box-sizing: border-box;
 }
