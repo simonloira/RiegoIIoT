@@ -6,7 +6,7 @@
 }
 
 body {
-    font-family: 'anthropicSans', 'Roboto', sans-serif;
+    font-family: 'anthropicSans', 'Hanken Grotesk', sans-serif;
     background-color: #e8f4f8;
     color: #333;
     min-height: 100vh;
@@ -75,29 +75,47 @@ main {
     margin-top: 50px;
 }
 
-#status-automatic-irrigation p:nth-of-type(1) {
+#status-irrigator {
     font-size: 36px;
     font-weight: 700;
     margin-bottom: 15px;
 }
 
-/*Sólo aparece con alguna salida del LOGO activa*/
-#status-automatic-irrigation p:nth-of-type(2) {
+/*Sólo aparece con alguna salida del LOGO activa o si llueve*/
+#active-zones{
     background-color: #31a735;
     color: white;
     padding: 12px 24px;
     border-radius: 25px;
-    display: inline-block;
     font-weight: 500;
     font-size: 14px;
+    display: None;
 }
 
-#status-automatic-irrigation p:nth-of-type(2)::before {
+#active-zones {
     content: '💧 ';
     margin-right: 5px;
 }
 
+#status-automatic-irrigation.raining {
+    background: linear-gradient(135deg, #2196F3, #1976D2);
+}
 
+#status-automatic-irrigation.idle {
+    background: linear-gradient(135deg, #3b5e7a, #597188);
+}
+
+#status-automatic-irrigation.active {
+    background: linear-gradient(135deg, #2196F3, #1976D2);
+}
+
+#status-automatic-irrigation.active, #status-automatic-irrigation.raining p:nth-of-type(2){
+    display: inline-block;
+}
+
+.unknown-status{ /*Se usa tanto para #status-automatic-irrigation como para well-level*/
+    background: linear-gradient(135deg, #727272, #929292);
+}
 /*--------------------------------------------------------------------------------------------------------*/
 
 
