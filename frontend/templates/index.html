@@ -84,7 +84,7 @@
 
         <!-- Dialog de selección de tiempo con Material 3 Expressive y ripple -->
         <div class="dialog-overlay" id="time-dialog-overlay">
-            <div class="time-dialog">
+            <dialog class="dialog" >
                 <h3 class="md-title">Seleccionar tiempo de riego</h3>
 
                 <!-- Display del tiempo -->
@@ -97,13 +97,32 @@
                 <button class="dialog-btn cancel ripple" onclick="closeTimeDialog()">Cancelar</button>
                 <button class="dialog-btn accept ripple" onclick="acceptTimeSelection()">Aceptar</button>
                 </div>
-            </div>
+            </dialog>
         </div>
         
         <div class="dialog-overlay" id="settings-dialog-overlay">
-            <div class="settings-dialog">
+            <dialog class="dialog settings-dialog" >
                 <h3 class="md-title">Ajusteeeaaahs</h3>
                 </div>
+            </dialog>
+        </div>
+
+        <div class="dialog-overlay" id="confirm-zone-activation">
+            <dialog class="dialog" >
+                <header>
+                    <h3 class="md-title">¿Quieres forzar esta salida?</h3>
+                </header>
+                <footer class="action-buttons">
+                    <button class="btn-primary" id="confirm-zone" data-zone="" onclick="zoneActivationConfirmed(this.dataset.zone)">
+                        <span>Aceptar</span>
+                    </button>
+                    <button class="btn-secondary" onclick="closeDialog('confirm-zone-activation')">
+                        <span>Cancelar</span>
+                    </button>
+                </footer>
+            </dialog>
+        </div>
+
         <div class="dialog-overlay" id="error">
             <div class="error-dialog">
                 <header>
@@ -125,7 +144,6 @@
         </div>
 
         <button class="accessibility-toggle">Aa⚪ Modo Accessible</button>
-        <dialog id="error"></dialog>
     </body>
 
     <script>
@@ -628,17 +646,21 @@
             }))
         }
 
-
-        function activaciónZona(nombreZona){
+        function  zoneActivationConfirmed(nombreZona){
             let tiempoActivacion = timeData[nombreZona]; //timeData variable global, objeto con los datos de tiempo por zonas
             // console.log(tiempoActivacion)
             const buttonsSpace = document.getElementById("but-" + nombreZona)
             buttonsSpace.classList = "loading"
             // lastOutputsState = estadosSalidas; Ya no hace falta, no me acuerdo por qué lo comenté pero bueno, ir va así //Se guarda el estado actual de las salidas para comprobar en el futuro qué zona cambió de estado
-            socket.send(JSON.stringify({comando: "act-"+nombreZona,
-                                        t_activacion: tiempoActivacion,
-            }))
+            closeDialog("confirm-zone-activation");
+        }
 
+        function activaciónZona(nombreZona){
+            //Poner cuando tenga un modelo de datos del mensaje recibido que
+            // si el PLC está desconectado haga un return
+            const confirmButton = document.getElementById('confirm-zone');
+            confirmButton.dataset.zone = nombreZona;
+            openDialog("confirm-zone-activation");
         }
 
         // function desactivaciónZona(nombreZona, tiempo){
