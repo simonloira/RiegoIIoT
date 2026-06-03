@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.clima import weather_manager
 from backend.clima.weather_data_extractor import WeatherMain
+from backend.crud.utils import create_meteogal_table
 from backend.history import history_manager
 from backend.history.activation_history import HistorySaver
 from backend.PLC import plc_manager
@@ -40,6 +41,7 @@ class Server:
     @asynccontextmanager
     async def lifespan(self, app: FastAPI) -> Any:
         print("Servidor arrancando...")
+        create_meteogal_table()
         history_manager.history_handler = HistorySaver()
         plc_manager.plc = PLCController(
             save_history=history_manager.history_handler.save_output_status
