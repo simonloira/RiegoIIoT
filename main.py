@@ -30,8 +30,8 @@ class Server:
         self.app.mount(
             "/static",
             StaticFiles(
-                directory=Path(__file__).parent.parent.absolute()
-                / "riegoAutomatico/frontend/static"
+                directory=Path(__file__).parent.absolute()
+                / "frontend/static"
             ),
             name="static",
         )
