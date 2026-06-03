@@ -1,5 +1,7 @@
 from backend.clima.weather_data_extractor import WeatherMain
 
+type WeatherExtractor = WeatherMain
+
 get_weather: WeatherMain | None = None
 
 def get_weather_extractor() -> WeatherMain:

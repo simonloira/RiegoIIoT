@@ -132,7 +132,7 @@ class ReadWritePLC(PLCConnection):
                 buff_byte = []
                 for bitIndex in range(8):
                     buff_byte.append(get_bool(data, byteIndex, bitIndex))
-                memories_state[byteIndex] = []
+                memories_state[byteIndex] = buff_byte
 
             return memories_state
 

@@ -30,8 +30,8 @@
         <meta name="robots" content="index, follow">
         <meta name="theme-color" content="#09f">
         <link rel="icon" type="image/jpeg" href="../favicon.jpeg">
-        <link rel="stylesheet" type="text/css" href="../styles/styles-history.css">
-        <link rel="stylesheet" type="text/css" href="../styles/fonts.css">
+        <link href="{{ url_for('static', path='/styles/styles-history.css') }}" rel="stylesheet">
+        <link href="{{ url_for('static', path='/styles/fonts.css') }}" rel="stylesheet">
     </head>
     <body>
         <div class="header">
@@ -92,7 +92,7 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    updateHistory(data['history'])
+                    updateHistory(data.history)
                 }else{
                     showError("server-history", "Error de conexión con el servidor");
                     showError("logo-history", "Error de conexión con el PLC");
@@ -128,22 +128,22 @@
         <script>
             function updateHistory(historyData) {
                 // Actualizar historial del servidor
-                if (historyData.server) {
-                    updatePanel("server-history", historyData.server, "server");
+                if (historyData.users) {
+                    updatePanel("server-history", historyData.users, "users");
                 }
                 
                 // Actualizar historial del LOGO
-                if (historyData.logo) {
-                    updatePanel("logo-history", historyData.logo, "logo");
+                if (historyData.plc) {
+                    updatePanel("logo-history", historyData.plc, "plc");
                 }
             }
 
             function updatePanel(panelId, data, type) {
                 const panel = document.getElementById(panelId);
                 
-                if (Object.keys(data).length === 0) {
-                    const emptyIcon = type === "server" ? "⚡" : "🔌";
-                    const emptyMessage = type === "server" ? 
+                if (!data || Object.keys(data).length === 0) {
+                    const emptyIcon = type === "users" ? "⚡" : "🔌";
+                    const emptyMessage = type === "users" ?
                         "No hay eventos del servidor" : 
                         "No hay eventos del PLC";
                     
@@ -156,26 +156,32 @@
                     return;
                 }
 
-                let html = "";
-                let timestamp = "";
-                let message = "";
-                for (let i = Object.keys(data).length-1; i >= 0; i--){
-                    let key = Object.keys(data)[i]
-                    if(data[key].length == 2){ //Si es información de un dispositivo conectado o desconectado se recibe un array de dos elementos
-                        //Estructura de data: {"idDispositivo": [timestamp, message]}
-                        timestamp = data[key][0]
-                        message = data[key][1];
-                    }else{ 
-                        //Si es información de servidor iniciado o activación del riego se recibe una string y siempre va a tener una
-                        //longitud mayor que dos (no va a tener sólo 2 caracteres)
-                        //Estructura de data: {"timestamp": messaget}
-                        timestamp = key;
-                        message = data[timestamp];
+                let entries = [];
+
+                if (type === "users") {
+                    // data = history.users → { "192.168.1.56": { ip, event, timestamp, name }, ... }
+                    for (let ip of Object.keys(data)) {
+                        const { timestamp, name, event } = data[ip];
+                        const message = `${name} (${ip}) - ${event}`;
+                        entries.push({ timestamp, message });
                     }
 
-                    html += createHistoryEntry(timestamp, message);
-                    panel.innerHTML = html;
-                }     
+                } else {
+                    // data = history.plc → { "zona": [ {event, timestamp, duration, zone}, ... ], ... }
+                    for (let zone of Object.keys(data)) {
+                        for (let ev of data[zone]) {
+                            const message = `Zona ${ev.zone} - ${ev.event} (${ev.duration}s)`;
+                            entries.push({ timestamp: ev.timestamp, message });
+                        }
+                    }
+                }
+
+                // Ordenar de más reciente a más antiguo
+                entries.sort((a, b) => b.timestamp - a.timestamp);
+
+                panel.innerHTML = entries
+                    .map(e => createHistoryEntry(formatTimestamp(e.timestamp), e.message))
+                    .join("");
             }
 
             function createHistoryEntry(timestamp, message) {
@@ -185,6 +191,10 @@
                         <p class="entry-message">${message}</p>
                     </div>
                 `;
+            }
+
+            function formatTimestamp(ts) {
+                return new Date(ts * 1000).toLocaleString("es-ES");
             }
 
             function showLoading(panelId, message) {

@@ -1,61 +1,60 @@
 import asyncio
-from json import dumps, loads
-from typing import Any
+from json import dumps
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from pydantic import ValidationError
 
-from backend.login import login
-from backend.history.activation_history import history, write_history
-import backend.clima.weather_manager as weather_manager
-import backend.history.history_manager as history_manager
-from backend.login.secure_token import check
-from backend.PLC import plc_manager
+from backend.history.history_manager import HistorySave, get_history_saver
+from backend.PLC.models import BasesTime
+from backend.PLC.plc_manager import PLCControl, get_plc
+from server.models import PLCDataResponse, SocketMessageResponse, SocketRequest
 
 router = APIRouter()
-check_token = check()
-plc = plc_manager.get_plc()
-weather = weather_manager.get_weather_extractor()
-history = history_manager.get_history_saver()
-connected_clients:set[WebSocket] = set()  # Esto se usa para hacer broadcast del diccionario time_data y que llegue en tiempo real a todos los clientes
+# Esto se usa para hacer broadcast del diccionario time_data y que llegue en
+# tiempo real a todos los clientes
+connected_clients: set[WebSocket] = set()
+
 
 @router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket) -> None:
+async def websocket_endpoint(
+    websocket: WebSocket,
+    plc: Annotated[PLCControl, Depends(get_plc)],
+    history: Annotated[HistorySave, Depends(get_history_saver)],
+) -> None:
+
     await websocket.accept()
-    history.save_client_status("Se ha conectado: ", websocket.client.host)
+    assert websocket.client, "Websocket.client es None"
+    history.save_client_status(websocket.client.host, "connected")
     connected_clients.add(websocket)
     try:
-        await websocket.send_text(dumps({"timeZonesSecs": plc.TIME_DATA}))
-        data_send: dict
-
+        init_json =  SocketMessageResponse(
+            status="success",
+            event="change-zone-time",
+            data={"timeZonesSecs": plc.TIME_DATA},
+            broadcast=False,
+        )
+        await websocket.send_json(init_json.model_dump())
         while True:
-            estadosSistema_salidas_dirSalidas = [
-                plc.obtener_estados(),
-                plc.outputs_addresses,  # Cambia la apariencia de los botones de las zonas | Salida activada: color verde. Desactivada: color gris.
-            ]  # Estados del PLC
-
-            data_send = {
-                "logoConectado": plc.plc_client.is_connected(),
-                "entradas-salidas-dirSalidas": estadosSistema_salidas_dirSalidas,
-                "last-activation": history.history["last-activation"],
-            }
-
             # print(f"\nSending: {data_send}\n")
-            await websocket.send_text(dumps(data_send))
-
+            await websocket.send_json(
+                build_plc_data_resp(plc, history).model_dump()
+            )
             # Esperar mensaje del cliente
             try:
-                message = await asyncio.wait_for(websocket.receive_text(), timeout=0.5)
-                data_send, info_time_zone = handle_client_messages(
-                    message
+                msg = await asyncio.wait_for(
+                    websocket.receive_text(), timeout=0.5
                 )
-                send_time_data = info_time_zone[0] #info_time_zone = [send_time, zones_time_data]
-                if send_time_data:
+                print(msg)
+                response = handle_client_messages(msg, plc, history)
+                print("Response_client: ", response)
+                if response.broadcast:
                     print("Se envía timeZonesSecs")
                     # Envía el diccionario con los tiempos a todos los clientes
-                    await broadcast(client_resp)
+                    await broadcast(response.model_dump())
                 else:
-                    print(f"\nNo tendría que enviar timeZonesSecs: {client_resp}")
-                    await websocket.send_text(dumps(client_resp))
+                    print(f"\nNo tendría que enviar timeZonesSecs: {response}")
+                    await websocket.send_json(response.model_dump())
 
             except asyncio.TimeoutError:
                 pass
@@ -64,12 +63,38 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
     except WebSocketDisconnect:
         print("Cliente desconectado")
-        history.save_client_status("Se ha desconectado: ", websocket.client.host)
+        history.save_client_status(websocket.client.host, "disconnected")
 
 
-async def broadcast(data: dict) -> None:
+def build_plc_data_resp(
+        plc: PLCControl, history:HistorySave
+    ) -> PLCDataResponse:
+    status: Literal["success", "error"]
+    error_msg = None
+    event = "auto-refresh"
+    status = "success"
+    status_memories = plc.get_status_memories()
+    outputs = plc.plc_client.read_outputs()
+
+    if (status_memories is None) or (outputs is None):
+        status = "error"
+        error_msg = "Error leyendo el PLC, quizás está desconectado. " \
+        "Verifica la conexión de red y el estado del mismo."
+    return PLCDataResponse(
+        event=event,
+        status=status,
+        error_msg=error_msg,
+        plc_connected=plc.plc_client.is_connected(),
+        status_memories=status_memories,
+        outputs=outputs,
+        outputs_addresses=plc.outputs_addresses,
+        last_activation=history.history.last_activation
+    )
+
+
+async def broadcast(data: dict[str, int]) -> None:
     client: WebSocket
-    disconnected:list[WebSocket] = []
+    disconnected: list[WebSocket] = []
     for client in connected_clients:
         print("Se envía timeZonesSecs a todos")
         try:
@@ -82,25 +107,76 @@ async def broadcast(data: dict) -> None:
         connected_clients.remove(client)
 
 
-    if "act" in cmd:  # Botón de activación de x zona en index.html
-        #Refactorizando la activación
-        pass
+def handle_zone_act(
+    request: SocketRequest, plc: PLCControl, history: HistorySave
+) -> SocketMessageResponse:
+    # Botón de activación de x zona en index.html
+    result = plc.zone_activation(
+        zone=request.zone, activation_time=request.act_time
+    )
+    if result is None:
+        return SocketMessageResponse(
+            status="error",
+            event=request.command,
+            error_msg="Error leyendo buffer de memoria o sistema inestable.",
+            broadcast=False,
+        )
+    history.save_output_status(result)
+    return SocketMessageResponse(
+        status="success",
+        event=request.command,
+        data=result.model_dump(),
+        broadcast=False,
+    )
 
-    elif cmd == "refresh_weather":  # Al actualizar la la página en index.html
-        print("Consiguiendo datos clima...")
-        weather_data = weather_manager.get_weather.read_last_saved_data(apis=["aemet", "meteogalicia"]) #weather_data = [True, [[aemet_7d, aemet_h], [meteogal]]] 
-        data_send = {"weatherData": weather_data}  #Envío [[aemet_7d, aemet_h], [meteogal]]
 
-    elif "change_zone_time" in cmd:
-        activation_time = int(client_data.get("t_activacion", ""))
-        zone = cmd.split("-")[1]
+def handle_time_zone(
+    request: SocketRequest, plc: PLCControl, history: HistorySave
+) -> SocketMessageResponse:
+    time_data = (request.act_time, BasesTime.MINUTES.value)
+    plc.save_time(f"T.Remote-{request.zone}", time_data)
 
-        plc_manager.plc.save_time([activation_time, 2], f"T.Remote-{zone}")
-        zones_time_data = plc_manager.plc.TIME_DATA
-
-        data_send = {"timeZonesSecs": zones_time_data}
-        send_time = True
-    return data_send, [send_time, zones_time_data]
+    return SocketMessageResponse(
+        status="success",
+        event=request.command,
+        data={"timeZonesSecs": plc.TIME_DATA},
+        broadcast=True,
+    )
 
 
+MSG_ACTIONS_MAP = {
+    "activate-zone": handle_zone_act,
+    "change-zone-time": handle_time_zone,
+}
 
+
+def handle_client_messages(
+    client_json: str, plc: PLCControl, history: HistorySave
+) -> SocketMessageResponse:
+    try:
+        print(client_json)
+        # Mensajes recibidos desde el cliente
+        request = SocketRequest.model_validate_json(client_json)
+
+        print("Client_data: ", request)
+        print(f"Client_data.Comando: {request.command}")
+
+        func = MSG_ACTIONS_MAP.get(request.command)
+        if func is None:
+            return SocketMessageResponse(
+                status="error",
+                event=request.command,
+                error_msg="No existe el comando",
+                broadcast=False,
+            )
+        response = func(request=request, plc=plc, history=history)
+        return response
+
+    except ValidationError as e:
+        print(e)
+        return SocketMessageResponse(
+            status="error",
+            event="unknown",
+            error_msg="Error validando el JSON",
+            broadcast=False,
+        )

@@ -1,30 +1,49 @@
+
 from datetime import datetime
 from json import load
 from os import getcwd
 
+from backend.clima.models import AemetData, MeteoGaliciaData, CurrentWeatherData
+
 PATH = getcwd()
 
-def is_night(current_hour, sunriset_time, sunset_time):
+def is_night(current_hour: int, sunriset_time:str, sunset_time:str) -> bool:
     sunrise_h = int(sunriset_time.split(":")[0])
     sunset_h = int(sunset_time.split(":")[0])
-    if current_hour > sunrise_h and current_hour < sunset_h:
+
+    if current_hour >= sunrise_h and current_hour <= sunset_h:
         return False
     return True
 
-def get_day_hour_index(aemet_h):
-    now = datetime.now()
-    day_index:int
-    hour_index:int
-    
-    for i in range(len(aemet_h["dia"])-1): 
-        aemet_date = aemet_h["dia"][i]["@fecha"].split("-")
-        if now.year == int(aemet_date[0]) and now.month == int(aemet_date[1]) and now.day == int(aemet_date[2]):
-            day_index = i
-            hour_index = now.hour - int(aemet_h["dia"][day_index]["estado_cielo"][0]["@periodo"]) 
-            return day_index, hour_index
-    return i, now.hour - int(aemet_h["dia"][i]["estado_cielo"][0]["@periodo"])
 
-def current_sky_status(aemet_h:dict):
+def get_day_hour_index(aemet_h: AemetData) -> tuple[int, int]:
+    now = datetime.now()
+    hour_index:int = 0
+    day_index:int = 0
+
+    for day_index, day in enumerate(aemet_h.days):
+        if day.date is None:
+            continue
+        date = day.date.split("-")
+
+        first_hour = day.sky_status[0].hour
+        last_hour = day.sky_status[-1].hour
+        if first_hour is None or last_hour is None:
+            continue
+
+        max_index = int(last_hour) - int(first_hour)
+        current_index:int = now.hour - int(first_hour)
+        hour_index = int(min(current_index, max_index))
+
+        if (now.year == int(date[0]) and
+            now.month == int(date[1]) and
+            now.day == int(date[2])):
+            return day_index, hour_index
+
+    return day_index, hour_index
+
+
+def current_data(aemet_h:AemetData, meteogalicia:MeteoGaliciaData) -> CurrentWeatherData:
     #Los datos de aemet se componen de la sigueinte manera:
     #Es un diccionario con unas keys, dentro de esas keys existe la key "dia" que es una lista de diccionarios
     #cada elemento de esa lista representa la información climatológica de cada día "dia"[0] (hoy) "dia"[1] mañana, etc
@@ -39,23 +58,23 @@ def current_sky_status(aemet_h:dict):
     # del day_index = 0 serían las 9:42  si day_index es 1 la primera hora serían las 00:00 porque sería el día siguiente.
     # Entonces, por eso "int(aemet_h["dia"][day_index]["estado_cielo"][0]["@periodo"])" nunca va a ser mayor que now.hour
     # Por lo que hour_index nunca será negativo y nunca se va a romper el código.
-   
-    status = aemet_h["dia"][day_index]["estado_cielo"][hour_index]["@descripcion"]
+    temperature = int(meteogalicia.temp_15m)
+    dew_point = int(meteogalicia.temp_dewpoint)
+    status = aemet_h.days[day_index].sky_status[hour_index].description or ""
+    sunrise = aemet_h.days[0].sunrise or ""
+    sunset = aemet_h.days[0].sunset or ""
 
-    night = is_night(datetime.now().hour, aemet_h["dia"][0]["@orto"], aemet_h["dia"][0]["@ocaso"])
+    night = is_night(hour_index, sunrise, sunset)
     if night:
         status += " noche"
 
     with open(f"{PATH}/frontend/static/weather_icons/icons.json", encoding="UTF-8") as file:
-        icon = load(file)[status]
+        icon:str = load(file)[status]
 
-    return status, icon, day_index, hour_index #Mando status: Estado cielo, icon: Icono del estado del cielo al lado de los grados
-                                               #      day_index: Número del día de los datos de aemet para mostrar los datos de ese día
-                                               #      hour_index: 
-
-def current_temperature(meteogalicia:dict):
-    temperature = float(meteogalicia["Temperatura"][1])
-    dew_point = float(meteogalicia["Temperatura"][4])
-    return round(temperature), round(dew_point)
-
-
+    return CurrentWeatherData(index_day=day_index,
+                              index_hour=hour_index,
+                              sky_status=status,
+                              sky_icon=icon,
+                              temperature=temperature,
+                              dew_point=dew_point,
+                            )
