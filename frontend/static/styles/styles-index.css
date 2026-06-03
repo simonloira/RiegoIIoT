@@ -91,8 +91,11 @@ main {
     font-size: 14px;
     display: None;
 }
+#active-zones.visible{
+    display: inline-block;
+}
 
-#active-zones {
+#active-zones::before {
     content: '💧 ';
     margin-right: 5px;
 }
@@ -107,10 +110,6 @@ main {
 
 #status-automatic-irrigation.active {
     background: linear-gradient(135deg, #2196F3, #1976D2);
-}
-
-#status-automatic-irrigation.active, #status-automatic-irrigation.raining p:nth-of-type(2){
-    display: inline-block;
 }
 
 .unknown-status{ /*Se usa tanto para #status-automatic-irrigation como para well-level*/
