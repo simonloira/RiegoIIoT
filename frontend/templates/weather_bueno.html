@@ -56,11 +56,9 @@
                         <div class="card-title">Próximos 6 días</div>
                     </div>
                     <div class="forecast-scroll">
-                        <div class="forecast-days" id="daily-forecast">
+                            <div class="forecast-days" id="daily-forecast"></div>
                         </div>
                     </div>
-                </div>
-                <div id="detailed-info-day"></div>   
             </div>
 
             <!-- Magnitudes widgtes -->
@@ -217,7 +215,8 @@
                 </div>
 
                     <div class="widget footer-info" id="footer-info">
-                        <span>{{meteogalicia.station_id}}: {{meteogalicia.timestamp}}</span>
+                        <span id="station-info"></span>
+                    
                     <div id="data-provider">
                         <img src="{{ url_for('static', path='/logo-meteogalicia.png') }}" alt="Logo meteogalicia">
                         <img src="{{ url_for('static', path='/logo-aemet.png') }}" alt="Logo aemet">
@@ -252,6 +251,7 @@
                 moveCelestialBody(sunrise, sunset);
                 createHumiditySVG(meteogalicia);
                 createRainSVG(meteogalicia);
+                renderStationInfo(meteogalicia);
                 loadIcons().then(icons => {
                     renderHourlyForecast(dayIndex, icons, aemetH, hourIndex)
                     renderWeeklyForecast(dayIndex, icons, aemet7d)
@@ -271,7 +271,13 @@
         const date = new Date()
         refreshWeather()
 
+        function renderStationInfo(meteogaliciaData){
+            const date = new Date(meteogaliciaData.timestamp*1000);
+            const element = document.getElementById('station-info');
+            element.textContent = `${meteogaliciaData.station_id}: 
+                                   ${date.toLocaleDateString()}, ${date.toLocaleTimeString()}`
         
+        }
         async function loadIcons(){
             const response = await fetch("/static/weather_icons/icons.json");
             const icons = await response.json()
