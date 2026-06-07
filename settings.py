@@ -43,8 +43,8 @@ class Settings:
     # 2. Configuración del PLC
     MEMORIE_BYTES_READ: Final[int] = 5  # Bytes de memoria a leer
     IP_LOGO: Final[str] = "192.168.2.252"  # "192.168.2.252"
-    LOCAL_TSAP: Final[Literal[4096]] = 0x1000
-    REMOTE_TSAP: Final[Literal[8192]] = 0x2000
+    LOCAL_TSAP: Final[Literal[8192]] = 0x2000
+    REMOTE_TSAP: Final[Literal[4096]] = 0x1000
 
     # 3. Configuración del Servidor
     SERVER_HOST: Final[str] = "0.0.0.0"
