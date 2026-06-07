@@ -144,13 +144,13 @@ class PLCController:
 
         if not off_only_zones:
             # Desactivar M18 (lloverá) y M19 (Servidor conectado)
-            self.plc_client.write_memory(self.BYTES_SSM["Lluvia"], False)
+            self.plc_client.write_memory(self.BYTES_SSM["NecesitaRegar"], False)
             self.plc_client.write_memory((2, 2), False)
 
-    def write_raining_memorie(self, rain: bool) -> None:
+    def write_irrigate_memorie(self, irrigate: bool) -> None:
          # Se llama en tasks.py después de obtener la información climatológica
         # Memoria: M18(M2.1)
-        self.plc_client.write_memory(self.BYTES_SSM["Lluvia"], rain)
+        self.plc_client.write_memory(self.BYTES_SSM["NecesitaRegar"], irrigate)
 
     def turn_off_zone(self, zone: str) -> None:
         """Encapsula la escritura física"""
