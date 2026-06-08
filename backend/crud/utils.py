@@ -1,7 +1,8 @@
 
 import sqlite3
-from settings import settings
 from datetime import datetime, timedelta
+
+from settings import settings
 
 SCHEME_TABLES = {
     "climate_data": [
@@ -27,8 +28,9 @@ def create_meteogal_table() -> None:
     PATH = settings.CLIMATE_DATA_PATH / "meteogalicia" / "meteogal.db"
     cx = sqlite3.connect(PATH)
     cu = cx.cursor()
+    columns = ', '.join(SCHEME_TABLES['climate_data'])
     cu.execute(
-        f"create table if not exists climate_data({', '.join(SCHEME_TABLES['climate_data'])})"
+        f"create table if not exists climate_data({columns})"
     )
 
 
@@ -46,7 +48,8 @@ def get_accumulated_rain_grass() -> float|None:
 
     accum_rain:float|None = None
     for date in dates:
-        s = f"timestamp >= '{date["day"]} 00:00:00' AND timestamp <= '{date["day"]} {date["max_hour"]}'"
+        window = f"'{date["day"]} {date["max_hour"]}'"
+        s = f"timestamp >= '{date["day"]} 00:00:00' AND timestamp <= {window}"
 
         with sqlite3.connect(PATH) as conn:
             conn.row_factory = sqlite3.Row
@@ -55,18 +58,16 @@ def get_accumulated_rain_grass() -> float|None:
             ).fetchone()
             if row is None:
                 continue
-            print(f"{date["day"]} 00:00:00-{date["max_hour"]}: {row['accum_rain']} mm")
+            rain_day = row['accum_rain']
+            print(f"{date["day"]} 00:00:00-{date["max_hour"]}: {rain_day} mm")
             if accum_rain is None:
-                accum_rain = row['accum_rain']
+                accum_rain = rain_day
                 continue
 
             accum_rain += row['accum_rain']
-        
+
     return accum_rain
-    
-        
-    
-       
+
 
 
 if __name__ == "__main__":

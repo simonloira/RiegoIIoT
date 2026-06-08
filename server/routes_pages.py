@@ -2,20 +2,23 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.exceptions import HTTPException
-from fastapi.responses import HTMLResponse, Response, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
-from backend.clima.weather_manager import get_weather_extractor, WeatherExtractor
-from backend.history.history_manager import get_history_saver, HistorySave
 from backend.clima.climate_flags import current_data
 from backend.clima.models import APIs
+from backend.clima.weather_manager import (
+    WeatherExtractor,
+    get_weather_extractor,
+)
+from backend.history.history_manager import HistorySave, get_history_saver
 from backend.login.login import check_login
 from backend.login.secure_token import check, gen_payload, generate_token
 from server.models import (
+    HistoryResponse,
     LoginRequest,
     MessageResponse,
     WeatherResponse,
-    HistoryResponse,
 )
 from settings import settings
 
@@ -32,7 +35,9 @@ async def validate_token(request: Request) -> bool:
 
 
 def get_weather_data(weather: WeatherExtractor) -> WeatherResponse:
-    weather_data = weather.read_last_saved_data(apis=[APIs.AEMET, APIs.METEOGALICIA])
+    weather_data = weather.read_last_saved_data(
+        apis=[APIs.AEMET, APIs.METEOGALICIA]
+    )
     aemet = weather_data.get("aemet")
     meteogalicia = weather_data.get("meteogalicia")
     if aemet is None or meteogalicia is None:
@@ -65,7 +70,8 @@ async def render_forecast(
     if valid_token:
         return templates.TemplateResponse(
             "weather_bueno.html",
-            context={"request": request, **get_weather_data(weather).model_dump()},
+            context={"request": request,
+                     **get_weather_data(weather).model_dump()},
         )
     return RedirectResponse(url=request.url_for("serve_page"), status_code=303)
 

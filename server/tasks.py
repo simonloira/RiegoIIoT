@@ -26,7 +26,7 @@ async def automatic_get_weather(
             print("\nComprobando si hace falta regar:")
             irrigate: bool = check_if_irrigate(aemet)
             print(f"¿Hace falta regar? {irrigate}")
-            
+
             plc.write_irrigate_memorie(irrigate)
             print("✅ Datos del clima actualizados.")
         except KeyError as e:
@@ -58,13 +58,13 @@ def check_if_irrigate(aemet: AemetFullData) -> bool:
 
     if float(period.value) == 0.0:
         return True  # Ahora mismo no va a llover así que se riega ya
-    
+
     return False
 
 
-def check_rain(accum_grass_rain: float, 
-               aemet_data: AemetFullData, 
-               index_day: int, 
+def check_rain(accum_grass_rain: float,
+               aemet_data: AemetFullData,
+               index_day: int,
                hour_index: int) -> bool:
     # weather_data = [[aemet_7d, aemet_h], [meteogal]]
     # Hour_index es el índice del periodo que representa la hora actual.
@@ -89,7 +89,7 @@ def check_rain(accum_grass_rain: float,
             print("Entre ayer y la hora de riego llovió lo sufiente.")
             return True
         print("No llovió lo suficiente. ¿Se alcanzará a lo largo del día?")
-        
+
         # Se calcula cuánto loverá a lo largo del día
         aemet_h = aemet_data["hourly"].days[index_day].rain
         for period in aemet_h[hour_index:]:

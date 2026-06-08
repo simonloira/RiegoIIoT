@@ -144,7 +144,9 @@ class PLCController:
 
         if not off_only_zones:
             # Desactivar M18 (lloverá) y M19 (Servidor conectado)
-            self.plc_client.write_memory(self.BYTES_SSM["NecesitaRegar"], False)
+            self.plc_client.write_memory(
+                self.BYTES_SSM["NecesitaRegar"], False
+            )
             self.plc_client.write_memory((2, 2), False)
 
     def write_irrigate_memorie(self, irrigate: bool) -> None:

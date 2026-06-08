@@ -2,9 +2,14 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from backend.history.models import LastActivation, History
+from backend.clima.models import (
+    AemetFullData,
+    CurrentWeatherData,
+    MeteoGaliciaData,
+)
+from backend.history.models import History, LastActivation
 from backend.PLC.models import PLCAddress, TagName
-from backend.clima.models import MeteoGaliciaData, AemetFullData, CurrentWeatherData
+
 
 class MessageResponse(BaseModel):
     message: str

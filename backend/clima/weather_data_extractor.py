@@ -290,7 +290,7 @@ class GetMeteogaliciaData():
                 print(f"Error llamando a meteogalicia: {error}")
                 sleep(2) #Se espera un poco antes de volver a pedir
                 continue
-        
+
         most_updated_data['date'] = most_recent_date
         return most_updated_data
 
@@ -645,7 +645,7 @@ class WeatherMain:
             if data is None:
                 print(f"{api_s} no tiene ninguna información guardada\n")
                 continue
-            saved_data[api.value] = data #type: ignore
+            saved_data[api.value] = data # pyright: ignore[reportGeneralTypeIssues]
             print(f"Leída la información climatológica guardada de {api_s}\n")
         return saved_data
 
