@@ -191,7 +191,6 @@
                 console.log(data)
 
                 if (data.event && data.status == 'success'){
-                    closeDialog('error')
                     document.querySelector("body").style.filter = "none";
                     console.log(eventsMap[data.event])
                     if (eventsMap[data.event] == undefined) return
@@ -371,15 +370,18 @@
             let activeZones = []; 
 
             estadoElement.classList.remove('raining', 'active', 'idle', 'unknown-status');
+            activeZonesElement.classList.remove('visible');
             if (!connectedLogo || !direccionesSalidas || !estadosSalidas || !estadosSistema){
                 estadoElement.classList.add("unknown-status")
                 estadoText.textContent = "No hay datos";
                 activeZonesElement.textContent = "";
                 return //No hay datos porque PLC desconectado
             }
-            if (estadosSistema["Lluvia"]){
+
+            if (!estadosSistema["NecesitaRegar"]){
                 estadoElement.classList.add("raining")
                 estadoText.textContent = "Lluvia";
+                activeZonesElement.classList.add('visible');
                 activeZonesElement.textContent = "No se regará en modo automático";
                 return
             }
@@ -394,8 +396,8 @@
                 }
             }
             //Se escriben las zonas activas en la tarjeta de riego
-            
             if (activeZones.length > 0){
+                activeZonesElement.classList.add('visible');
                 activeZonesElement.textContent = "Zona(s) " + activeZones.join(", ");
                 return
             }
@@ -587,6 +589,9 @@
 
     <script> //Enviar comandos al server
         async function refreshWeather(){ 
+            //TODO: Crear un intervalo para que cada X tiempo se llame a la API para actualizar la
+            //información climatológica. Que a ver, dudo que alguna vez se vaya a estar más de 20
+            //minutos viendo la página de inicio sin hacer nada ni recargarla ni nada pero bueno.
             const response = await fetch('/forecast-data', {
                 method: 'GET',
             });

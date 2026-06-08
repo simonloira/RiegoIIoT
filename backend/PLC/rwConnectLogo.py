@@ -15,7 +15,7 @@ class PLCConnection:
         try:
             print("Conectándose al LOGO...")
             self.client.set_connection_params(settings.IP_LOGO,
-                                              settings.LOCAL_TSAP, 
+                                              settings.LOCAL_TSAP,
                                               settings.REMOTE_TSAP)
             self.client.set_param(Parameter.RecvTimeout, 4000)
             self.client.set_param(Parameter.SendTimeout, 4000)
@@ -30,7 +30,7 @@ class PLCConnection:
     def plc_reconnection(self) -> None: # Hacer la función asíncrona
             try:
                 if not self.is_connected():
-                    self.connect_PLC()       
+                    self.connect_PLC()
             except Exception as e:
                 print(f"Error durante el proceso de reconexión: {e}")
 
@@ -67,7 +67,7 @@ class ReadWritePLC(PLCConnection):
             return [get_bool(data, 0, i) for i in range(4)]
 
         except Exception as e:
-            print(f"Error leyendo las salidas: {e}") 
+            print(f"Error leyendo las salidas: {e}")
             self.__error()
             return None
 

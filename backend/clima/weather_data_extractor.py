@@ -53,7 +53,7 @@ class GetMeteogaliciaData():
             self.seconds_offset = offset.total_seconds()
         else:
             self.seconds_offset = 0 # Corrección de hora. De meteogalicia se
-                                    # recibe UTC-(1 o 2 si invierno o no),
+                                    # recibe UTC-1 (o 2 si invierno o no),
                                     # Luego self.utc_offset hace la correción
                                     # a UTC_SPAIN.
 
@@ -162,10 +162,7 @@ class GetMeteogaliciaData():
         if raw_data == {} or raw_data["lastData"] == []:
             return None
 
-        # Asignación de fecha y corrección a UTC_SPAIN
-        ts = datetime.fromtimestamp(
-                                    raw_data['date']/1000 + self.seconds_offset
-                                   ).isoformat()
+        ts = datetime.fromtimestamp(raw_data['date']).isoformat(sep=" ")
 
         accum_rain = self._get_accumulated_rain(raw_data["id_estation"])
 
@@ -222,7 +219,7 @@ class GetMeteogaliciaData():
                                         }
 
             resp = get(ENDPOINT, timeout=5,
-                       headers=self.headers,  params=params)
+                       headers=self.headers, params=params)
             data = resp.json().get("data", [])
 
             accumulated = sum(float(item["value"]) for item in data if float(item["value"]) >= 0)  # noqa: E501
@@ -294,6 +291,7 @@ class GetMeteogaliciaData():
                 sleep(2) #Se espera un poco antes de volver a pedir
                 continue
 
+        most_updated_data['date'] = most_recent_date
         return most_updated_data
 
     def _read_ids_stations(self, path:Path) -> dict[str, str]:
@@ -647,7 +645,7 @@ class WeatherMain:
             if data is None:
                 print(f"{api_s} no tiene ninguna información guardada\n")
                 continue
-            saved_data[api.value] = data #type: ignore
+            saved_data[api.value] = data # pyright: ignore[reportGeneralTypeIssues]
             print(f"Leída la información climatológica guardada de {api_s}\n")
         return saved_data
 

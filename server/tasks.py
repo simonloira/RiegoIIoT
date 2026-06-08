@@ -3,8 +3,9 @@ from random import randint
 from time import time
 
 from backend.clima.climate_flags import get_day_hour_index
-from backend.clima.models import AemetFullData, MeteoGaliciaData
+from backend.clima.models import AemetFullData
 from backend.clima.weather_manager import WeatherExtractor
+from backend.crud.utils import get_accumulated_rain_grass
 from backend.history.history_manager import HistorySave
 from backend.history.models import ZoneActivation
 from backend.PLC.plc_manager import PLCControl
@@ -17,15 +18,16 @@ async def automatic_get_weather(
         try:
             print("☁️ Actualizando datos climatológicos...")
             weather_data = weather_extractor.get_weather_data()
-            meteogalicia = weather_data.get("meteogalicia")
             aemet = weather_data.get("aemet")
-            if meteogalicia is None or aemet is None:
+            if aemet is None:
                 await asyncio.sleep(60)
                 continue
             print("tasks.py: ", weather_data)
-            print("check_rain")
-            rain_expected: bool = check_rain(meteogalicia, aemet)
-            plc.write_raining_memorie(rain=rain_expected)
+            print("\nComprobando si hace falta regar:")
+            irrigate: bool = check_if_irrigate(aemet)
+            print(f"¿Hace falta regar? {irrigate}")
+
+            plc.write_irrigate_memorie(irrigate)
             print("✅ Datos del clima actualizados.")
         except KeyError as e:
             print("❌ Error al actualizar clima:", e)
@@ -33,9 +35,37 @@ async def automatic_get_weather(
         await asyncio.sleep(randint(20, 40) * 60)
 
 
-def check_rain(
-    meteogal_data: MeteoGaliciaData, aemet_data: AemetFullData
-) -> bool:
+def check_if_irrigate(aemet: AemetFullData) -> bool:
+    # No es una decisión final. Es una decisión actual basada
+    # en el momento en el que se están haciendo las comprobaciones
+    # puede ser que en otra comprobación se decida que es necesario regar
+    # pero el PLC sólo deja regar 1 sóla vez
+    accum_grass_rain = get_accumulated_rain_grass()
+    if accum_grass_rain is None:
+        # Como noy hay información lo paso a 0. El None me sirve
+        # para mandar una advertencia al frontend o así
+        accum_grass_rain = 0
+
+    index_day, hour_index = get_day_hour_index(aemet["hourly"])
+    enough_rain = check_rain(accum_grass_rain, aemet, index_day, hour_index)
+
+    if enough_rain:
+        return False #No riega, llovió suficiente
+
+    period = aemet["hourly"].days[index_day].rain[hour_index]
+    if period.value is None:
+        return True  # No sé si lloverá o no así que por si acaso, riego ya
+
+    if float(period.value) == 0.0:
+        return True  # Ahora mismo no va a llover así que se riega ya
+
+    return False
+
+
+def check_rain(accum_grass_rain: float,
+               aemet_data: AemetFullData,
+               index_day: int,
+               hour_index: int) -> bool:
     # weather_data = [[aemet_7d, aemet_h], [meteogal]]
     # Hour_index es el índice del periodo que representa la hora actual.
     # Por defecto sería 0, si index_day es 1 es que el informe de los datos de
@@ -52,41 +82,26 @@ def check_rain(
     # Entonces, el bucle for que busca en aemet_h lo que hace es obviar todos
     # los periodos anteriores y empieza en el elemento que está en la posición
     # igual a hour_index (for period in **aemet_h[hour_index:]**:)
-    print("A ver si se prevé lluvia. Si se activa M18 es que sí que lloverá.")
-
+    estimated_rain: float = accum_grass_rain
+    RAIN_THRESHOLD = 5  # Unidad en mm o l/m^2
     try:
-        index_day, hour_index = get_day_hour_index(aemet_data["hourly"])
-
-        if meteogal_data.accum_rain >= 5:
-            print("Meteogalicia dice que llueve")
+        if accum_grass_rain >= RAIN_THRESHOLD:
+            print("Entre ayer y la hora de riego llovió lo sufiente.")
             return True
-        print("Meteogalicia dice que nada, no llueve")
-        # Se comprueba si en algún momento del día lloverá
+        print("No llovió lo suficiente. ¿Se alcanzará a lo largo del día?")
+
+        # Se calcula cuánto loverá a lo largo del día
         aemet_h = aemet_data["hourly"].days[index_day].rain
         for period in aemet_h[hour_index:]:
             value = period.value
             if value == "Ip" or value is None:
                 continue
-
-            if float(value) > 0.2:
-                print("Aemet_hourly dice que llueve")
-                return True
-        print("Aemet_hourly dice que nada, no llueve")
-        # En el caso de que la predicción por horas no ponga que va a llover,
-        # se comprueba en la predicción del día completo
-        aemet_7d = aemet_data["7d"].days[index_day].rain
-        for period in aemet_7d:
-            value = period.value
-            if value == "Ip" or value is None:
-                continue
-            # Entero porque los porcentajes siempre se representan de 0-100 en
-            # enteros: Si hay una probabilidad mayor al 40% se considera que
-            # lloverá
-            if int(value) >= 100:
-                print("Aemet_7d dice que llueve")
+            estimated_rain += float(value)
+            if estimated_rain > RAIN_THRESHOLD:
+                print(f"Aemet_hourly. Lloverá sufiente: {estimated_rain}mm")
                 return True
 
-        print("No llueve vamos!!")
+        print(f"Parece que va a hacer falta regar: {estimated_rain}mm")
         return False
     except Exception as e:
         print(f"Error comprobando si lloverá: {e}")
