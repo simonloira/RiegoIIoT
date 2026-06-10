@@ -57,8 +57,14 @@ async def serve_page(
     request: Request, valid_token: Annotated[bool, Depends(validate_token)]
 ) -> HTMLResponse:
     if valid_token:
-        return templates.TemplateResponse("index.html", {"request": request})
-    return templates.TemplateResponse("login.html", {"request": request})
+        return templates.TemplateResponse(
+            name="index.html",
+            request=request
+        )
+    return templates.TemplateResponse(
+        name="login.html",
+        request=request
+    )
 
 
 @router.get("/prevision")
@@ -69,9 +75,10 @@ async def render_forecast(
 ) -> Any:
     if valid_token:
         return templates.TemplateResponse(
-            "weather_bueno.html",
+            name="weather_bueno.html",
             context={"request": request,
                      **get_weather_data(weather).model_dump()},
+            request=request
         )
     return RedirectResponse(url=request.url_for("serve_page"), status_code=303)
 
