@@ -2,11 +2,13 @@ from base64 import urlsafe_b64decode, urlsafe_b64encode
 from hashlib import sha256
 from hmac import compare_digest, new
 from json import dumps, loads
+from logging import getLogger
 from time import time as actual_seconds
 from typing import Any
 
 from settings import settings
 
+logger = getLogger(__name__)
 
 def gen_payload() -> dict[str, float]:
     payload_default = {
@@ -48,7 +50,7 @@ class check:  # Comprobar el token que se recibe desde el cliente
         if client_token is None:
             return False
         # Añade padding (nº de "=" necesarios para cumplir un grupo de 4 bits)
-        print(client_token)
+        logger.debug("Token cliente: ", client_token)
         self.raw_client_token = client_token
         self.client_token = client_token.split(".")
         self.client_token[1] += "=" * (-len(client_token[1]) % 4)
@@ -61,19 +63,19 @@ class check:  # Comprobar el token que se recibe desde el cliente
                 if (
                     actual_seconds() < self.maxtime
                 ):  # Si no pasó el tiempo de expiración
-                    print("Oleeeeee")
+                    logger.debug("Token correcto")
                     return True
                 else:
-                    print("Caducó la sesión")
+                    logger.debug("Caducó la sesión")
                     return False
             else:
-                print(
+                logger.debug(
                     "No son iguales. Aunque deberían así que a ver qué pasa."
                 )  # El token no se generó en el servidor ya que se usó otra
                    # clave secreta
                 return False
         except Exception as e:
-            print(e)
+            logger.error(f"Error comprobando token {e}")
             return False
 
     def generate_probe_token(self) -> str:  # Genera el token de prueba

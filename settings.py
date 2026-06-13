@@ -1,4 +1,5 @@
 # Lo importo en rwConnectLogo y en plc_controller
+import logging
 from dataclasses import dataclass
 from os import environ
 from pathlib import Path
@@ -13,6 +14,7 @@ load_vars_env()
 
 @dataclass
 class Settings:
+    STATE_LEVEL: Final[Literal[20]] = logging.INFO
     # 1. Configuración de rutas
     # Login
     USER: Final[str] = environ["USER_LOGIN"]

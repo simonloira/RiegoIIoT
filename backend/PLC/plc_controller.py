@@ -1,4 +1,5 @@
 from asyncio import CancelledError, create_task, sleep
+from logging import getLogger
 from time import time
 from typing import Callable
 
@@ -18,6 +19,7 @@ from backend.PLC.models import (
 )
 from settings import settings
 
+logger = getLogger(__name__)
 
 class PLCController:
     def __init__(self, save_history: Callable[[ZoneActivation], None]) -> None:
@@ -82,6 +84,9 @@ class PLCController:
             self.plc_client.write_memory(self.remote_addresses[zone], False)
 
             duration = time() - self.active_tasks[f"off-{zone}"].start_time
+            logger.warning(
+                f"Detenida manualmente {zone} remoto. Regó durante {duration}s"
+            )
             return ZoneActivation(
                 event="manual_stop",
                 timestamp=int(time()),
@@ -97,13 +102,16 @@ class PLCController:
         task = create_task(
             # Se empieza a contar el tiempo de funcionamiento
             self.shutdown_output_PLC(
-                zone=zone, activation_time=activation_time
+                zone=zone, act_time=activation_time
             )
         )
         self.active_tasks[f"off-{zone}"] = ActivationTask(
             task=task, start_time=time()
         )
 
+        logger.warning(
+            f"Activada remotamente {zone} durante {activation_time}s"
+        )
         return ZoneActivation(
             event="start",
             timestamp=int(time()),
@@ -126,11 +134,11 @@ class PLCController:
 
     def stop_plc(self, off_only_zones: bool = False) -> None:
         """Stops all PLC outputs"""
-        print("Deteniendo todo")
+        logger.info("Apagando las salidas del PLC")
 
         memories_status = self.plc_client.read_buffer_memories()
         if memories_status is None:
-            print("Error leyendo memorias = None")
+            logger.debug("Error leyendo memorias = None")
             return
 
         for zona, direccion in self.remote_addresses.items():
@@ -140,7 +148,7 @@ class PLCController:
                     self.remote_addresses[zona], False
                 )
 
-        print("Estado salidas: ", self.plc_client.read_outputs())
+        logger.debug("Estado salidas: ", self.plc_client.read_outputs())
 
         if not off_only_zones:
             # Desactivar M18 (lloverá) y M19 (Servidor conectado)
@@ -229,7 +237,7 @@ class PLCController:
         return values[0], values[1]
 
     async def shutdown_output_PLC(
-        self, zone: str, activation_time: int
+        self, zone: str, act_time: int
     ) -> None:
         """Apaga la salida del PLC y guarda en el historial el momento en el
         que se desactivó.
@@ -239,20 +247,24 @@ class PLCController:
 
         Args:
             zone (str): Nombre de la zona que se apaga
-            activation_time (int): Tiempo en segundos que estuvo activada
+            act_time (int): Tiempo en segundos que estuvo activada
         """
         try:
-            await sleep(activation_time)
+            await sleep(act_time)
             self.turn_off_zone(zone)
             info = ZoneActivation(
                 event="stop",
                 timestamp=int(time()),
-                duration=activation_time,
+                duration=act_time,
                 zone=zone,
             )
             self.save_history(info)
+            logger.info(
+                f"La zona {zone} terminó de regar. Regó durante: {act_time}")
         except CancelledError:
-            print(f"Apagado automático cancelado forzado apagado de {zone}")
+            logger.debug(
+                f"Apagado automático cancelado forzado apagado de {zone}"
+            )
         finally:
             # Da igual si da error cualquier otro error o no que al terminar de
             # ejecutarse el bloque se elimina la tarea

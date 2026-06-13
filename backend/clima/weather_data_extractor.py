@@ -2,6 +2,7 @@ import sqlite3
 from dataclasses import asdict
 from datetime import datetime, timedelta
 from json import dump, loads
+from logging import getLogger
 from os import path
 from pathlib import Path
 from time import sleep, time
@@ -28,6 +29,8 @@ from backend.clima.models import (
     WeatherData,
 )
 from settings import settings
+
+logger = getLogger(__name__)
 
 
 class GetMeteogaliciaData():
@@ -142,7 +145,9 @@ class GetMeteogaliciaData():
             filtered_data  = self._filter_raw_data(raw_data)
             return filtered_data
         except Exception as e:
-            print(f"Error obteniendo la información de meteogalicia {e}")
+            logger.error(
+                f"Error obteniendo la información de meteogalicia {e}"
+            )
             return None
 
     def _filter_raw_data(self, raw_data: dict[str, Any]) -> (MeteoGaliciaData |
@@ -198,7 +203,7 @@ class GetMeteogaliciaData():
                 Returns:
                     float: Cantidad de lluvia acumulada en el día de hoy
             """
-            print("Calculando lluvia acumulada del día")
+            logger.debug("Calculando lluvia acumulada del día")
 
             ENDPOINT = "https://apis-ext.xunta.gal/meteo2api/v1/api/graficas/datos/10minutal"
 
@@ -256,7 +261,7 @@ class GetMeteogaliciaData():
                 resp = get(ENDPOINT, timeout=5,
                            headers=self.headers, params=params,)
                 data = resp.json()
-                print(f"\nA ver si {station} tiene datos actualizados")
+                logger.debug(f"A ver si {station} tiene datos actualizados")
                 # Se divide entre mil porque vienen en milisegundos y se aplica
                 # el offset para corregirlo a UTC0 porque meteogalicia manda el
                 # dato en UTC-2/UTC-1
@@ -266,14 +271,22 @@ class GetMeteogaliciaData():
                 # es mayor que la fecha de los datos actuales, no son datos
                 # más actualizados.
                 if most_recent_date > data_date:
-                    print(f"{station}: no tiene los datos más actualizados")
-                    print(f"Recientes: {most_recent_date}|Ahora: {data_date}")
+                    logger.debug(
+                        f"{station}: no tiene los datos más actualizados"
+                    )
+                    logger.debug(
+                        f"Recientes: {most_recent_date}|Ahora: {data_date}"
+                    )
                     continue
                 elif most_recent_date == data_date:
-                    print(f"{station} está igual de actualizado que: ",
-                          most_updated_data['station'])
-                    print("Por lo que me quedaré con los datos de: ",
-                          most_updated_data['station'])
+                    logger.debug(
+                        f"{station} está igual de actualizado que: ",
+                        most_updated_data['station']
+                    )
+                    logger.debug(
+                        "Por lo que me quedaré con los datos de: ",
+                        most_updated_data['station']
+                    )
                     continue
 
                 most_recent_date = data_date #Hora con datos más actualizados
@@ -283,11 +296,13 @@ class GetMeteogaliciaData():
 
                 #Sólo se permiten datos como máximo de hace una hora
                 if (most_recent_date + 3600) > time():
-                    print(f"{station} tiene datos actualizados")
+                    logger.debug(f"{station} tiene datos actualizados")
                     break #No es necesario que llame a las demás estaciones
                 sleep(0.5) #Para no enviar muchas solicitudes seguidas
             except exceptions.RequestException as error:
-                print(f"Error llamando a meteogalicia: {error}")
+                logger.error(
+                    f"Error llamando a meteogalicia({station}): {error}"
+                )
                 sleep(2) #Se espera un poco antes de volver a pedir
                 continue
 
@@ -325,7 +340,7 @@ class GetAemetData():
         """
         new_data = self._fetch()
         failure, message = self._save(new_data)
-        print(message)
+        logger.warning(f"Información de guardado: {message}")
 
         # Solo lee de disco si falló, si no usa lo que ya tiene en RAM
         final_output: dict[str, Any] = {}
@@ -406,7 +421,7 @@ class GetAemetData():
             file_paths.append(file_path)
 
         return (failure,
-               f"\nGuardados: {file_paths}.\n Conflictivos:{no_data_paths}")
+               f"Guardados: {file_paths}. Conflictivos:{no_data_paths}")
 
     def _fetch(self) -> dict[str, AemetData | None]:
         """Punto de entrada para llamar a Aemet
@@ -443,7 +458,7 @@ class GetAemetData():
 
             return selected_data
         except exceptions.RequestException as error:
-            print(f"Error llamando a aemet {error}")
+            logger.error(f"Error llamando a aemet {error}")
             return None
 
     def _select_data(self,
@@ -609,7 +624,7 @@ class WeatherMain:
             path = Path(settings.CLIMATE_DATA_PATH/api_state_path)
             self.api_state = self._load_api_call_vars(path)
 
-            print(f"\nProbando a llamar a {api_s}")
+            logger.info(f"Probando a llamar a {api_s}")
             api_data, api_called, fetch_failed = self._api_call_flow(api_s)
 
             if api_data is None:
@@ -618,8 +633,10 @@ class WeatherMain:
             full_data[api.value] = api_data
 
             if fetch_failed:
-                print("\n\nFalló el fetch, info ya guardada o error leyendo.")
-                print("Se guardará el tiempo para próximo intento:")
+                logger.error(
+                    "Falló el fetch, info ya guardada o error leyendo."
+                )
+                logger.info("Se guardará el tiempo para próximo intento:")
                 self.api_state.next_retry_time = time() + self.time_retry
 
             elif api_called:
@@ -630,7 +647,9 @@ class WeatherMain:
             vars_path = Path(settings.CLIMATE_DATA_PATH/api_state_path)
             self._save_api_call_vars(api_state = self.api_state,
                                       file_path = vars_path)
-            print(f"Obtenida la última información climatológica de {api_s}\n")
+            logger.info(
+                f"Obtenida la última información climatológica de {api_s}"
+            )
 
         return full_data
 
@@ -643,10 +662,14 @@ class WeatherMain:
             api_s = api.value
             data = self._read_last_data(api_s)
             if data is None:
-                print(f"{api_s} no tiene ninguna información guardada\n")
+                logger.warning(
+                    f"{api_s} no tiene ninguna información guardada"
+                )
                 continue
             saved_data[api.value] = data # pyright: ignore[reportGeneralTypeIssues]
-            print(f"Leída la información climatológica guardada de {api_s}\n")
+            logger.info(
+                f"Leída la información climatológica guardada de {api_s}"
+            )
         return saved_data
 
     def _api_call_flow(self,
@@ -673,7 +696,7 @@ class WeatherMain:
             api_called = True
             return api_data, api_called, fetch_failed
 
-        print(f"{api} no puede llamar.")
+        logger.warning(f"{api}: No se le permite ni llamar ni reintentar")
         api_data = self._read_last_data(api)
         return api_data, api_called, fetch_failed
 
@@ -683,12 +706,12 @@ class WeatherMain:
 
         data:MeteoGaliciaData | AemetFullData | None
 
-        print("Recuperando información guardada...")
+        logger.debug("Recuperando información guardada...")
         data = self.retrieve_save_map[api]()
         if data == {} or (data is None):
-            print("Error recuperando la información guardada.")
+            logger.error("Error recuperando la información guardada.")
             return data
-        print("Información recuperada.")
+        logger.debug("Información recuperada.")
         return data
 
     def _load_api_call_vars(self, file_path:Path) -> APIState:
@@ -709,7 +732,7 @@ class WeatherMain:
                 dump(asdict(api_state), f, indent=2)
 
         except Exception as e:
-            print(f"Error guardando estado de API: {e}")
+            logger.error(f"Error guardando estado de API: {e}")
 
 
 if __name__ == "__main__":

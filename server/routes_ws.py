@@ -1,5 +1,6 @@
 import asyncio
 from json import dumps
+from logging import getLogger
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
@@ -10,6 +11,7 @@ from backend.PLC.models import BasesTime
 from backend.PLC.plc_manager import PLCControl, get_plc
 from server.models import PLCDataResponse, SocketMessageResponse, SocketRequest
 
+logger = getLogger(__name__)
 router = APIRouter()
 # Esto se usa para hacer broadcast del diccionario time_data y que llegue en
 # tiempo real a todos los clientes
@@ -25,7 +27,7 @@ async def websocket_endpoint(
 
     await websocket.accept()
     assert websocket.client, "Websocket.client es None"
-    history.save_client_status(websocket.client.host, "connected")
+    logger.info(f"Cliente conectado: {ip}")
     connected_clients.add(websocket)
     try:
         init_json =  SocketMessageResponse(
@@ -45,15 +47,17 @@ async def websocket_endpoint(
                 msg = await asyncio.wait_for(
                     websocket.receive_text(), timeout=0.5
                 )
-                print(msg)
+                logger.debug("Mensaje: ", msg)
                 response = handle_client_messages(msg, plc, history)
-                print("Response_client: ", response)
+                logger.debug("Response_client: ", response)
                 if response.broadcast:
-                    print("Se envía timeZonesSecs")
+                    logger.debug("Se envía timeZonesSecs")
                     # Envía el diccionario con los tiempos a todos los clientes
                     await broadcast(response.model_dump())
                 else:
-                    print(f"\nNo tendría que enviar timeZonesSecs: {response}")
+                    logger.debug(
+                        f"No tendría que enviar timeZonesSecs: {response}"
+                    )
                     await websocket.send_json(response.model_dump())
 
             except asyncio.TimeoutError:
@@ -62,7 +66,7 @@ async def websocket_endpoint(
             await asyncio.sleep(1)
 
     except WebSocketDisconnect:
-        print("Cliente desconectado")
+        logger.info(f"Cliente desconectado: {ip}")
         history.save_client_status(websocket.client.host, "disconnected")
 
 
@@ -96,7 +100,7 @@ async def broadcast(data: dict[str, int]) -> None:
     client: WebSocket
     disconnected: list[WebSocket] = []
     for client in connected_clients:
-        print("Se envía timeZonesSecs a todos")
+        logger.debug("Se envía timeZonesSecs a todos")
         try:
             await client.send_text(dumps(data))
         except Exception:
@@ -153,13 +157,14 @@ MSG_ACTIONS_MAP = {
 def handle_client_messages(
     client_json: str, plc: PLCControl, history: HistorySave
 ) -> SocketMessageResponse:
-    try:
-        print(client_json)
-        # Mensajes recibidos desde el cliente
-        request = SocketRequest.model_validate_json(client_json)
 
-        print("Client_data: ", request)
-        print(f"Client_data.Comando: {request.command}")
+    logger.debug(f"client_json: {client_json}")
+    # Mensajes recibidos desde el cliente
+    request = SocketRequest.model_validate_json(client_json)
+
+    try:
+        logger.debug("Client_data: ", request)
+        logger.debug(f"Client_data.Comando: {request.command}")
 
         func = MSG_ACTIONS_MAP.get(request.command)
         if func is None:
@@ -173,10 +178,12 @@ def handle_client_messages(
         return response
 
     except ValidationError as e:
-        print(e)
+        logger.error(f"Error validando el JSON: {e}")
+        logger.error(f"JSON: {request}")
         return SocketMessageResponse(
             status="error",
             event="unknown",
             error_msg="Error validando el JSON",
             broadcast=False,
         )
+

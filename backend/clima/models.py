@@ -1,9 +1,12 @@
 from dataclasses import dataclass
 from enum import Enum
+from logging import getLogger
 from time import time
 from typing import Literal, TypedDict
 
 from pydantic import BaseModel
+
+logger = getLogger(__name__)
 
 type AemetFullData = dict[Literal['7d', 'hourly'], AemetData]
 
@@ -84,15 +87,15 @@ class APIState:
     def __can_fetch(self, cache_ttl: int) -> bool:
         """Verificar si se puede hacer una nueva petición"""
         can_fetch = (time() - self.last_fetch_time) > cache_ttl
-        print(cache_ttl, self.last_fetch_time)
-        print(f"Puede llamar? {can_fetch}")
+        logger.debug(f"TTL:{cache_ttl} Last fecthed: {self.last_fetch_time}")
+        logger.debug(f"Puede llamar? {can_fetch}")
         return can_fetch
 
     def __can_retry(self) -> bool:
         """Verificar si se puede reintentar"""
         can_retry = self.next_retry_time > 0 and time() > self.next_retry_time
-        print(self.next_retry_time, time())
-        print(f"Puede reintentar? {can_retry}")
+        logger.debug(f"ts-Reintento:{self.next_retry_time} ts-ahora: {time()}")
+        logger.debug(f"Puede reintentar? {can_retry}")
         return can_retry
 
     def can_call_or_retry(self, cache_ttl: int) -> bool:

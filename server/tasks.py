@@ -1,4 +1,5 @@
 import asyncio
+from logging import getLogger
 from random import randint
 from time import time
 
@@ -10,27 +11,28 @@ from backend.history.history_manager import HistorySave
 from backend.history.models import ZoneActivation
 from backend.PLC.plc_manager import PLCControl
 
+logger = getLogger(__name__)
 
 async def automatic_get_weather(
     plc: PLCControl, weather_extractor: WeatherExtractor
 ) -> None:
     while True:
         try:
-            print("☁️ Actualizando datos climatológicos...")
+            logger.info("Actualizando datos climatológicos...")
             weather_data = weather_extractor.get_weather_data()
             aemet = weather_data.get("aemet")
             if aemet is None:
                 await asyncio.sleep(60)
                 continue
-            print("tasks.py: ", weather_data)
-            print("\nComprobando si hace falta regar:")
+            logger.debug("Información climatológica: ", weather_data)
+            logger.info("Comprobando si hace falta regar:")
             irrigate: bool = check_if_irrigate(aemet)
-            print(f"¿Hace falta regar? {irrigate}")
+            logger.info(f"¿Hace falta regar? {irrigate}")
 
             plc.write_irrigate_memorie(irrigate)
-            print("✅ Datos del clima actualizados.")
+            logger.info("Datos del clima actualizados.")
         except KeyError as e:
-            print("❌ Error al actualizar clima:", e)
+            logger.error("Error al actualizar clima:", e)
         # Entre cada 20 y 40 minutos se actualiza la información
         await asyncio.sleep(randint(20, 40) * 60)
 
@@ -86,9 +88,13 @@ def check_rain(accum_grass_rain: float,
     RAIN_THRESHOLD = 5  # Unidad en mm o l/m^2
     try:
         if accum_grass_rain >= RAIN_THRESHOLD:
-            print("Entre ayer y la hora de riego llovió lo sufiente.")
+            logger.info(
+                "Entre ayer y la hora de riego llovió lo sufiente. No riega."
+            )
             return True
-        print("No llovió lo suficiente. ¿Se alcanzará a lo largo del día?")
+        logger.debug(
+            "No llovió lo suficiente. ¿Se alcanzará a lo largo del día?"
+        )
 
         # Se calcula cuánto loverá a lo largo del día
         aemet_h = aemet_data["hourly"].days[index_day].rain
@@ -98,13 +104,15 @@ def check_rain(accum_grass_rain: float,
                 continue
             estimated_rain += float(value)
             if estimated_rain > RAIN_THRESHOLD:
-                print(f"Aemet_hourly. Lloverá sufiente: {estimated_rain}mm")
+                logger.info(
+                    f"Aemet_hourly. Lloverá sufiente: {estimated_rain}mm"
+                )
                 return True
 
-        print(f"Parece que va a hacer falta regar: {estimated_rain}mm")
+        logger.info(f"Parece que va a hacer falta regar: {estimated_rain}mm")
         return False
     except Exception as e:
-        print(f"Error comprobando si lloverá: {e}")
+        logger.error(f"Error comprobando si lloverá: {e}")
         return False
 
 
@@ -156,6 +164,7 @@ async def plc_watchdog(plc: PLCControl, history_handler: HistorySave) -> None:
             continue
 
         for flag in act_flags:
+            logger.info(f"Activada localmente: {flag}")
             history_handler.save_output_status(
                 info=ZoneActivation(
                     event="local_start",
@@ -165,6 +174,7 @@ async def plc_watchdog(plc: PLCControl, history_handler: HistorySave) -> None:
             )
 
         for flag in deact_flags:
+            logger.info(f"Desactivada localmente: {flag}")
             history_handler.save_output_status(
                 info=ZoneActivation(
                     event="local_stop",

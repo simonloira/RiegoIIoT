@@ -1,4 +1,6 @@
 import asyncio
+import logging
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -21,6 +23,7 @@ from server.tasks import (
     plc_watchdog,
     server_heartbeat,
 )
+from settings import settings
 
 
 class Server:
@@ -40,7 +43,7 @@ class Server:
 
     @asynccontextmanager
     async def lifespan(self, app: FastAPI) -> Any:
-        print("Servidor arrancando...")
+        root.info("Iniciando tareas del servidor...")
         create_meteogal_table()
         history_manager.history_handler = HistorySaver()
         plc_manager.plc = PLCController(
@@ -61,17 +64,54 @@ class Server:
         )  # Envío al PLC el estado de conexión al servidor
         asyncio.create_task(
             plc_reconnection(plc_manager.plc)
-        )  # Tarea de comprobación si está el PLC conectado, y si no, reconectar
+        ) # Tarea de comprobación si está el PLC conectado, y si no, reconectar
 
-        yield  # NOTA: Todo lo que está antes es startup, después del yield es shutdown
+        yield  # NOTA: Lo que está antes es startup, después es shutdown
 
-        print("Servidor cerrando: apagando PLC...")
+        root.info("Apagando salidas del PLC...")
         plc_manager.plc.stop_plc()
-        input("Pulsa enter: ")
 
+
+class AnsiColorFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        no_style = '\033[0m'
+        green = '\033[32m'
+        bold = '\033[91m'
+        yellow = '\033[93m'
+        red = '\033[31m'
+        red_light = '\033[91m'
+        start_style = {
+            'DEBUG': no_style,
+            'INFO': green,
+            'WARNING': yellow,
+            'ERROR': red,
+            'CRITICAL': red_light + bold,
+        }.get(record.levelname, no_style)
+        end_style = no_style
+        return f'{start_style}{super().format(record)}{end_style}'
 
 if __name__ == "__main__":
     import uvicorn
+    logging.basicConfig(
+        filename='riegoiiot.log',
+        format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
+        datefmt='%m/%d/%Y %H:%M:%S %z'
+    )
+    root = logging.getLogger()
+    handler = logging.StreamHandler(sys.stdout)
 
-    # setup_logging()
-    uvicorn.run(Server().app, host="0.0.0.0", port=8000, reload=False)
+    root.setLevel(settings.STATE_LEVEL)
+    handler.setLevel(settings.STATE_LEVEL)
+
+    f = '{asctime} | {levelname:<8s} | {name:<20s} | {message}'
+    formatter = AnsiColorFormatter(f, style='{')
+    handler.setFormatter(formatter)
+
+    root.addHandler(handler)
+
+    uvicorn.run(
+        Server().app,
+        host=settings.SERVER_HOST,
+        port=settings.SERVER_PORT,
+        reload=False
+    )

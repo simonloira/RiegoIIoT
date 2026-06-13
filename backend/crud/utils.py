@@ -1,8 +1,11 @@
 
 import sqlite3
 from datetime import datetime, timedelta
+from logging import getLogger
 
 from settings import settings
+
+logger = getLogger(__name__)
 
 SCHEME_TABLES = {
     "climate_data": [
@@ -59,7 +62,9 @@ def get_accumulated_rain_grass() -> float|None:
             if row is None:
                 continue
             rain_day = row['accum_rain']
-            print(f"{date["day"]} 00:00:00-{date["max_hour"]}: {rain_day} mm")
+            logger.debug(
+                f"{date["day"]} 00:00:00-{date["max_hour"]}: {rain_day} mm"
+            )
             if accum_rain is None:
                 accum_rain = rain_day
                 continue
