@@ -507,9 +507,8 @@
     </script>
 
     <script>//Representación temperatura y humedad
-        let hrTempValues = []
 
-        function gaugeLevel(){
+        function gaugeLevel(hrTempValues){
              // const colors = {"temperature": , "humidity": };
             const colors = {
                 //["blue", "green", "orange", "red"]
@@ -529,7 +528,7 @@
                 
                 if (percentage >= 35 && percentage < 48){
                     color = colors[magnitudes[i]][1];
-                }else if(percentage >= 50 && percentage < 85){
+                }else if(percentage >= 48 && percentage < 85){
                     color = colors[magnitudes[i]][2];
                 }else if(percentage >= 85){
                     color = colors[magnitudes[i]][3];
@@ -549,6 +548,7 @@
                 "hum_rel":["Humedad", "%", "humidity"]
             }
             const dataDate = new Date(weatherData["timestamp"])
+            let hrTempValues = []
             let html = "";
             
             for (let magnitude of Object.keys(magnitudes)){
@@ -581,7 +581,7 @@
             
             // Esperar a que el DOM se actualice
             requestAnimationFrame(() => {
-                gaugeLevel()
+                gaugeLevel(hrTempValues)
             });
         }
 
@@ -771,6 +771,7 @@
         let currentDialogZone = null;
         let timeDigits = "";
         let totalSeconds = 0;
+        const maxSeconds = 3600;
         let zoneSelected = "";
 
         //Cuando se pulsa la flecha hacia abajo se desplega la tarjeta de la zona y se ve el botón de selección de tiempo.
@@ -818,9 +819,9 @@
         }
 
         function addDigit(d) {
-            if (timeDigits.length >= 6) return;
+            if (timeDigits.length >= 4) return;
             timeDigits += d;
-            if (timeDigits.length > 6) timeDigits = timeDigits.slice(0, 6);
+            if (timeDigits.length > 4) timeDigits = timeDigits.slice(0, 4);
             updateDisplay();
         }
 
@@ -830,12 +831,14 @@
         }
 
         function updateDisplay() {
-            let padded = timeDigits.padStart(6, "0");
-            let h = padded.slice(0, 2);
-            let m = padded.slice(2, 4);
-            let s = padded.slice(4, 6);
-            document.getElementById("time-display").innerText = `${h}:${m}:${s}`;
-            totalSeconds = h*3600 + m*60 + s*1;
+            let padded = timeDigits.padStart(4, "0");
+            let m = padded.slice(0, 2);
+            let s = padded.slice(2, 4);
+            document.getElementById("time-display").innerText = `${m}:${s}`;
+            totalSeconds = m*60 + s*1;
+            if (totalSeconds > maxSeconds){
+                totalSeconds = maxSeconds;
+            }
         }
 
         function acceptTimeSelection() {
