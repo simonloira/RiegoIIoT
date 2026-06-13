@@ -43,20 +43,15 @@ class Settings:
     )
 
     # 2. Configuración del PLC
-    MEMORIE_BYTES_READ: Final[int] = 5  # Bytes de memoria a leer
-    IP_LOGO: Final[str] = "192.168.2.252"  # "192.168.2.252"
-    LOCAL_TSAP: Final[Literal[8192]] = 0x2000
-    REMOTE_TSAP: Final[Literal[4096]] = 0x1000
+    MEMORY_BYTES_READ: Final[int] = int(environ["MEMORY_BYTES_READ"])
+    IP_LOGO: Final[str] = environ["IP_LOGO"]
+    LOCAL_TSAP: Final[int] = int(environ["LOCAL_TSAP"], 16)
+    REMOTE_TSAP: Final[int] = int(environ["REMOTE_TSAP"], 16)
 
     # 3. Configuración del Servidor
     SERVER_HOST: Final[str] = "0.0.0.0"
     SERVER_PORT: Final[int] = 8000
-    DEBUGGING: Final[bool] = False
 
-
-# 4. Constantes de Tarea ya veré en algún momento si me interesa poner
-# un archivo de configuración de marcas.
-# HEARTBEAT_ADDRESS: tuple = (2, 2) # M19
 
 # Creamos una única instancia de la clase Settings
 settings = Settings()

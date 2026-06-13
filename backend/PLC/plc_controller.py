@@ -23,7 +23,6 @@ logger = getLogger(__name__)
 
 class PLCController:
     def __init__(self, save_history: Callable[[ZoneActivation], None]) -> None:
-        self.memorie_bytes_read = settings.MEMORIE_BYTES_READ
       # Carga las direcciones del PLC
         self.BYTES_VM = VirtualMemories(
             **load_json_file(settings.VM_PATH)

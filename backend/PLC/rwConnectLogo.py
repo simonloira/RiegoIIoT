@@ -121,7 +121,7 @@ class ReadWritePLC(PLCConnection):
             return None
 
     def read_buffer_memories(self,
-                             B_read:int=settings.MEMORIE_BYTES_READ
+                             B_read:int=settings.MEMORY_BYTES_READ
                              ) -> None | Buffer:
         try:
             if not self.is_connected():
