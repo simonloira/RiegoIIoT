@@ -27,7 +27,9 @@ async def websocket_endpoint(
 
     await websocket.accept()
     assert websocket.client, "Websocket.client es None"
+    ip = websocket.client.host
     logger.info(f"Cliente conectado: {ip}")
+    history.save_client_status(ip=ip, event="connected")
     connected_clients.add(websocket)
     try:
         init_json =  SocketMessageResponse(
@@ -67,7 +69,7 @@ async def websocket_endpoint(
 
     except WebSocketDisconnect:
         logger.info(f"Cliente desconectado: {ip}")
-        history.save_client_status(websocket.client.host, "disconnected")
+        history.save_client_status(ip=ip, event="disconnected")
 
 
 def build_plc_data_resp(

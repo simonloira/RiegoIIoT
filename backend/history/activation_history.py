@@ -1,3 +1,4 @@
+import socket
 from time import time
 from typing import Final
 
@@ -18,9 +19,9 @@ class HistorySaver:
         # TODO: Reemplazar almacenamiento en RAM por almacenamiento persistente
         # con SQLite3
         self.history = History()
-        self.IPS_IDS: Final[dict[str, str]] = {} #IPs dispositivos conocidos
+        self.IPS_IDS: Final[dict[str, str]] = {}  # IPs dispositivos conocidos
 
-    def save_output_status(self, info:ZoneActivation) -> None:
+    def save_output_status(self, info: ZoneActivation) -> None:
         """Método único para evitar código duplicado"""
         if self.history.plc.get(info.zone) is None:
             self.history.plc[info.zone] = []
@@ -28,13 +29,10 @@ class HistorySaver:
 
         self.history.last_activation = info
 
-    def save_client_status(self, ip: str, event: UserEvents)-> None:
-        client_name = self._get_id_ip(ip)
+    def save_client_status(self, ip:str, event: UserEvents) -> None:
+        client_name = self._get_id_ip(ip=ip)
         info = UserConnected(
-            event=event,
-            timestamp=int(time()),
-            ip=ip,
-            name=client_name
+            event=event, timestamp=int(time()), ip=ip, name=client_name
         )
 
         self.history.users[ip] = info
@@ -52,10 +50,14 @@ class HistorySaver:
 
         return f"{ip_parts[0]}.{ip_parts[1]}.{ip_parts[2]}.{ip_parts[3]}"
 
-    def _get_id_ip(self, ip:str) -> str:
+    def _get_id_ip(self, ip: str) -> str:
         if ip in self.IPS_IDS.keys():
             return f"{self.IPS_IDS[ip]}"
-        return "DISPOSITIVO DESCONOCIDO"
+        try:
+            host, _, _ = socket.gethostbyaddr(ip)
+            return host
+        except socket.herror:
+            return "DISPOSITIVO DESCONOCIDO"
 
         # history[element][key] = [timestamp, message] #Para los dispositivos
         # conectados y desconectados. La key sería la IP
