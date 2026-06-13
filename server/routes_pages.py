@@ -57,14 +57,8 @@ async def serve_page(
     request: Request, valid_token: Annotated[bool, Depends(validate_token)]
 ) -> HTMLResponse:
     if valid_token:
-        return templates.TemplateResponse(
-            name="index.html",
-            request=request
-        )
-    return templates.TemplateResponse(
-        name="login.html",
-        request=request
-    )
+        return templates.TemplateResponse(name="index.html", request=request)
+    return templates.TemplateResponse(name="login.html", request=request)
 
 
 @router.get("/prevision")
@@ -76,9 +70,11 @@ async def render_forecast(
     if valid_token:
         return templates.TemplateResponse(
             name="weather_bueno.html",
-            context={"request": request,
-                     **get_weather_data(weather).model_dump()},
-            request=request
+            context={
+                "request": request,
+                **get_weather_data(weather).model_dump(),
+            },
+            request=request,
         )
     return RedirectResponse(url=request.url_for("serve_page"), status_code=303)
 
@@ -92,8 +88,13 @@ async def render_history(request: Request) -> HTMLResponse:
 async def forecast_data(
     request: Request,
     weather: Annotated[WeatherExtractor, Depends(get_weather_extractor)],
-) -> WeatherResponse:
-    return get_weather_data(weather)
+) -> Response:
+    #TTL de 10 mins para que no me haga muchas llamadas al servidor
+    return Response(
+        content=get_weather_data(weather).model_dump_json(),
+        media_type="application/json",
+        headers={"Cache-Control": "public, max-age=600"},
+    )
 
 
 @router.post("/login")
