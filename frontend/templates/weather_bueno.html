@@ -20,23 +20,23 @@
                 </button>
                 <section class="location">{{aemet["7d"].village}}, {{aemet["7d"].province}}</section> <!-- Nombre concello -->
             </header>
-             <div class="weather-layout"> <!-- Información meteorlógica -->
+            <div class="weather-layout"> <!-- Información meteorlógica -->
             <!-- Inicio -->
             <div class="main-weather">
                 <div class="current-temp">
-                <div class="condition">
-                            <img src="{{ url_for('static', path='/weather_icons/animated/%s' % sky_icon) }}" 
-                            class="sky-status-icon" width="100" alt="icono del clima">
-                            {{sky_status}}
+                    <div class="condition">
+                        <img src="{{ url_for('static', path='/weather_icons/animated/%s' % sky_icon) }}" 
+                        class="sky-status-icon" width="100" alt="icono del clima">
+                        {{sky_status}}
                     </div>
-                        <div class="temp-display">{{temperature}}°</div>
-                        <div id="feels-like">Sensación térmica:
-                                {{aemet.hourly.days[index_day].therm_sense[index_hour-1].value}}°
+                    <div class="temp-display">{{temperature}}°</div>
+                    <div id="feels-like">Sensación térmica:
+                        {{aemet.hourly.days[index_day].therm_sense[index_hour-1].value}}°
                     </div>
-                        <div id="temp-max-min">Máxima {{aemet["7d"].days[index_day].max_temp}}° · 
+                    <div id="temp-max-min">Máxima {{aemet["7d"].days[index_day].max_temp}}° · 
                                 Mínima {{aemet["7d"].days[index_day].min_temp}}°
                     </div>
-                    </div>
+                </div>
                 <!-- Predicción por horas -->
                 <div class="forecast-card"> 
                     <div class="card-header">
@@ -44,8 +44,7 @@
                         <div class="card-title">Predicción por horas</div>
                     </div>
                     <div class="hourly-scroll">
-                        <div class="hourly-items" id="hourly-forecast">
-                        </div>
+                        <div class="hourly-items" id="hourly-forecast"></div>
                     </div>
                 </div>
 
@@ -56,19 +55,19 @@
                         <div class="card-title">Próximos 6 días</div>
                     </div>
                     <div class="forecast-scroll">
-                            <div class="forecast-days" id="daily-forecast"></div>
-                        </div>
+                        <div class="forecast-days" id="daily-forecast"></div>
                     </div>
+                </div>
             </div>
 
             <!-- Magnitudes widgtes -->
             <div class="weather-widgets">
-                    <div class="widget circular wind-velocity" id="wind-velocity"> <!-- Velocidad viento -->
+                <div class="widget circular wind-velocity" id="wind-velocity"> <!-- Velocidad viento -->
                     <div class="widget-header">
                         <span class="material-symbols-outlined">air</span>
-                            <span>Velocidad del viento a 10m</span>
+                        <span>Velocidad del viento a 10m</span>
                     </div>
-                        <svg class="background-shape" style="transform: translate(34%, 24%) rotate({{meteogalicia.wind_dir}}deg);"
+                    <svg class="background-shape" style="transform: translate(34%, 24%) rotate({{meteogalicia.wind_dir}}deg);"
                         viewBox="0 0 100 100" preserveAspectRatio="none">
                         <path d="M 4,25 
                             L 40,90
@@ -89,16 +88,16 @@
                         <span class="cardinal-point e">E</span>
                         <span class="cardinal-point o">O</span>
                     </div>
-                        <div class="widget-value">{{meteogalicia.wind_speed}} km/h</div>
-                        <div class="widget-label">{{meteogalicia.wind_dir}}°</div>
+                    <div class="widget-value">{{meteogalicia.wind_speed}} km/h</div>
+                    <div class="widget-label">{{meteogalicia.wind_dir}}°</div>
                 </div>
 
-                    <div class="widget circular burst-velocity" id="burst-velocity"><!-- Refacho viento -->
+                <div class="widget circular burst-velocity" id="burst-velocity"><!-- Refacho viento -->
                     <div class="widget-header">
                         <span class="material-symbols-outlined">air</span>
-                            <span>Ráfaga a 10m</span>
+                        <span>Ráfaga a 10m</span>
                     </div>
-                        <svg class="background-shape" style="transform: translate(34%, 24%) rotate({{meteogalicia.wind_gust_dir}}deg);"
+                    <svg class="background-shape" style="transform: translate(34%, 24%) rotate({{meteogalicia.wind_gust_dir}}deg);"
                         viewBox="0 0 100 100" preserveAspectRatio="none">
                         <path d="M 4,25 
                             L 40,90
@@ -119,23 +118,22 @@
                         <span class="cardinal-point e">E</span>
                         <span class="cardinal-point o">O</span>
                     </div>
-                        <div class="widget-value">{{meteogalicia.wind_gust}} km/h</div><!-- Título: Refacho a 10m -->
-                        <div class="widget-label">{{meteogalicia.wind_gust_dir}}°</div>
+                    <div class="widget-value">{{meteogalicia.wind_gust}} km/h</div><!-- Título: Refacho a 10m -->
+                    <div class="widget-label">{{meteogalicia.wind_gust_dir}}°</div>
+                </div>
+                <div class="widget sunrise-sunset" id="sunrise-sunset"><!-- Salida y puesta de sol -->
+                    <div class="widget-header">
+                        <span class="material-symbols-outlined">wb_twilight</span>
+                        <span>Salida y puesta de sol</span>
+                    </div>
+                    <div id="sunrise-svg"></div>
+                    <div class="sun-times">
+                        <span>{{aemet.hourly.days[index_day].sunrise}}</span>
+                        <span>{{aemet.hourly.days[index_day].sunset}}</span>
+                    </div>
                 </div>
 
-                    <div class="widget sunrise-sunset" id="sunrise-sunset"><!-- Salida y puesta de sol -->
-                        <div class="widget-header">
-                            <span class="material-symbols-outlined">wb_twilight</span>
-                            <span>Salida y puesta de sol</span>
-                        </div>
-                        <div id="sunrise-svg"></div>
-                         <div class="sun-times">
-                            <span>{{aemet.hourly.days[index_day].sunrise}}</span>
-                            <span>{{aemet.hourly.days[index_day].sunset}}</span>
-                        </div>
-                </div>
-
-                    <div class="widget uv-max" id="uv-max"><!-- índice UV máximo diario -->
+                <div class="widget uv-max" id="uv-max"><!-- índice UV máximo diario -->
                     <div class="widget-header">
                         <span class="material-symbols-outlined">wb_sunny</span>
                         <span>UV máximo diario</span>
@@ -175,47 +173,47 @@
                             <circle cx="112" cy="112" r="8" class="uv-dot uv-dot-9" data-level="9"/>
                         </svg>
                     </div>
-                        <div class="widget-value" id="uv-value">{{aemet["7d"].days[index_day].uv_max}}</div>
+                    <div class="widget-value" id="uv-value">{{aemet["7d"].days[index_day].uv_max}}</div>
                     <div class="widget-label" id="uv-label">Moderate</div>
                 </div>
 
                 <div class="widget rain" id="rain"><!-- Lluvia -->
                     <div class="widget-header">
                         <span class="material-symbols-outlined">rainy_light</span>
-                            <span>Lluvia acumulada</span>
-                            <!-- <spanmeteogalicia["Precipitación"][0]}</span> -->
+                        <span>Lluvia acumulada</span>
+                        <!-- <spanmeteogalicia["Precipitación"][0]}</span> -->
                     </div>
-                        <div class="widget-value">{{meteogalicia.accum_rain}} L/m²</div><!-- Título: Refacho a 10m -->
+                    <div class="widget-value">{{meteogalicia.accum_rain}} L/m²</div><!-- Título: Refacho a 10m -->
                     <div class="dew-point">
-                            <span id="dew-point-value" class="widget-label">{{meteogalicia.last_rain}}</span>
-                            <span>Último dato</span>
+                        <span id="dew-point-value" class="widget-label">{{meteogalicia.last_rain}}</span>
+                        <span>Último dato</span>
                     </div>
                 </div>
 
-                    <div class="widget humidity" id="humidity"> <!-- Humedad relativa -->
+                <div class="widget humidity" id="humidity"> <!-- Humedad relativa -->
                     <div class="widget-header">
                         <span class="material-symbols-outlined">water_drop</span>
-                            <span>Humedad relativa a 1.5 m</span>
+                        <span>Humedad relativa a 1.5 m</span>
                     </div>
-                        <div class="widget-value">{{meteogalicia.hum_rel}}%</div>
+                    <div class="widget-value">{{meteogalicia.hum_rel}}%</div>
                     <!-- <span class="material-symbols-outlined">dew_point</span> -->
                     <div class="dew-point">
-                            <span id="dew-point-value" class="widget-label">{{meteogalicia.temp_dewpoint}}°</span>
+                        <span id="dew-point-value" class="widget-label">{{dew_point}}°</span>
                         <span>Punto de rocío</span>
                     </div>
                 </div>
 
-                    <div class="widget circular solar-radiation" id="solar-radiation"> <!-- Radiación solar -->
+                <div class="widget circular solar-radiation" id="solar-radiation"> <!-- Radiación solar -->
                     <div class="widget-header">
                         <span class="material-symbols-outlined">explosion</span>
                             <span>Radiación solar global</span>
                     </div>
-                        <div class="widget-value">{{meteogalicia.solar_radiation}} W/m²</div><!-- Título: Refacho a 10m -->
-                        <div class="widget-label">Horas de sol: {{meteogalicia.solar_hours}}h</div>
+                    <div class="widget-value">{{meteogalicia.solar_radiation}} W/m²</div><!-- Título: Refacho a 10m -->
+                    <div class="widget-label">Horas de sol: {{meteogalicia.solar_hours}}h</div>
                 </div>
 
-                    <div class="widget footer-info" id="footer-info">
-                        <span id="station-info"></span>
+                <div class="widget footer-info" id="footer-info">
+                    <span id="station-info"></span>
                     
                     <div id="data-provider">
                         <img src="{{ url_for('static', path='/logo-meteogalicia.png') }}" alt="Logo meteogalicia">
@@ -244,8 +242,8 @@
     
                 let sunrise = aemetH.days[dayIndex].sunrise.split(":")
                 let sunset = aemetH.days[dayIndex].sunset.split(":")
-        sunrise = hoursToDecimal(parseInt(sunrise[0]), parseInt(sunrise[1])); // 8:49
-        sunset = hoursToDecimal(parseInt(sunset[0]), parseInt(sunset[1])); // 19:51
+                sunrise = hoursToDecimal(parseInt(sunrise[0]), parseInt(sunrise[1])); // 8:49
+                sunset = hoursToDecimal(parseInt(sunset[0]), parseInt(sunset[1])); // 19:51
                 
                 renderSunriseSunsetSVG(sunrise, sunset);
                 moveCelestialBody(sunrise, sunset);
@@ -272,7 +270,7 @@
         refreshWeather()
 
         function renderStationInfo(meteogaliciaData){
-            const date = new Date(meteogaliciaData.timestamp*1000);
+            const date = new Date(meteogaliciaData.timestamp);
             const element = document.getElementById('station-info');
             element.textContent = `${meteogaliciaData.station_id}: 
                                    ${date.toLocaleDateString()}, ${date.toLocaleTimeString()}`
