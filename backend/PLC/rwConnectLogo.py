@@ -178,8 +178,8 @@ class ReadWritePLC(PLCConnection):
             value = values[i]
 
             data_length = self.get_length_data(data_zone)
-            self.client.write_area(Areas.DB,0,byte,(value).to_bytes(data_length,
-                                                                    "big"))
+            data = bytearray((value).to_bytes(data_length,"big"))
+            self.client.write_area(Areas.DB,0,byte, data)
 
             # client.write_area(Areas.DB,0,4,b'\x02')
         return None
