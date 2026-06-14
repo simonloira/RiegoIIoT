@@ -50,7 +50,7 @@ class check:  # Comprobar el token que se recibe desde el cliente
         if client_token is None:
             return False
         # Añade padding (nº de "=" necesarios para cumplir un grupo de 4 bits)
-        logger.debug("Token cliente: ", client_token)
+        logger.debug(f"Token cliente: {client_token}")
         self.raw_client_token = client_token
         self.client_token = client_token.split(".")
         self.client_token[1] += "=" * (-len(client_token[1]) % 4)

@@ -75,13 +75,14 @@ class Server:
 class AnsiColorFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         no_style = '\033[0m'
+        blue = '\033[34m'
         green = '\033[32m'
         bold = '\033[91m'
         yellow = '\033[93m'
         red = '\033[31m'
         red_light = '\033[91m'
         start_style = {
-            'DEBUG': no_style,
+            'DEBUG': blue,
             'INFO': green,
             'WARNING': yellow,
             'ERROR': red,

@@ -16,8 +16,8 @@ def load_vars_env(vars_env_path:str='vars.env') -> None:
 
     with open(vars_env_path, "r", encoding='UTF-8') as file:
         for line in file.readlines():
-
             if line == '\n' or line.startswith("#"):
                 continue
+            line = line.split("#")[0].strip() #Comentarios en línea
             key, value = line.replace('\n', '').split('=', 1)
             environ[key.strip()] = value.strip()
