@@ -10,6 +10,7 @@ from backend.crud.utils import get_accumulated_rain_grass
 from backend.history.history_manager import HistorySave
 from backend.history.models import ZoneActivation
 from backend.PLC.plc_manager import PLCControl
+from settings import settings
 
 logger = getLogger(__name__)
 
@@ -24,7 +25,7 @@ async def automatic_get_weather(
             if aemet is None:
                 await asyncio.sleep(60)
                 continue
-            logger.debug("Información climatológica: ", weather_data)
+            logger.debug(f"Información climatológica: {weather_data}")
             logger.info("Comprobando si hace falta regar:")
             irrigate: bool = check_if_irrigate(aemet)
             logger.info(f"¿Hace falta regar? {irrigate}")
@@ -134,9 +135,23 @@ async def server_heartbeat(plc: PLCControl) -> None:
 
 
 async def plc_reconnection(plc: PLCControl) -> None:
+    tries = 0
+    delay_time = 4
     while True:
-        plc.plc_client.plc_reconnection()
-        await asyncio.sleep(4)
+        if plc.plc_client.is_connected():
+            tries = 0
+            delay_time = 4
+        else:
+            tries += 1
+            logger.debug(f"Reconectando LOGO!... Intento {tries}")
+            plc.plc_client.plc_reconnection()
+            delay_time = 10 * tries
+
+        if delay_time > settings.MAX_REC_SECS:
+            delay_time = settings.MAX_REC_SECS
+
+        logger.debug(f"Ahora se esperarán {delay_time}s")
+        await asyncio.sleep(delay_time)
 
 
 async def plc_watchdog(plc: PLCControl, history_handler: HistorySave) -> None:

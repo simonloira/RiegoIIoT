@@ -47,6 +47,7 @@ class Settings:
     IP_LOGO: Final[str] = environ["IP_LOGO"]
     LOCAL_TSAP: Final[int] = int(environ["LOCAL_TSAP"], 16)
     REMOTE_TSAP: Final[int] = int(environ["REMOTE_TSAP"], 16)
+    MAX_REC_SECS: Final[int] = int(environ["MAX_REC_SECS"])
 
     # 3. Configuración del Servidor
     SERVER_HOST: Final[str] = "0.0.0.0"

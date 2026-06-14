@@ -27,6 +27,11 @@ async def websocket_endpoint(
 
     await websocket.accept()
     assert websocket.client, "Websocket.client es None"
+
+    if not plc.plc_client.is_connected():
+        logger.debug("Intendo reconectar el PLC desde websocket")
+        plc.plc_client.plc_reconnection() #Comprobar plc conectado o reconectar
+
     ip = websocket.client.host
     logger.info(f"Cliente conectado: {ip}")
     history.save_client_status(ip=ip, event="connected")
@@ -165,7 +170,7 @@ def handle_client_messages(
     request = SocketRequest.model_validate_json(client_json)
 
     try:
-        logger.debug("Client_data: ", request)
+        logger.debug(f"Client_data: {request}")
         logger.debug(f"Client_data.Comando: {request.command}")
 
         func = MSG_ACTIONS_MAP.get(request.command)

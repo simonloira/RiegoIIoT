@@ -147,7 +147,7 @@ class PLCController:
                     self.remote_addresses[zona], False
                 )
 
-        logger.debug("Estado salidas: ", self.plc_client.read_outputs())
+        logger.debug(f"Estado salidas: {self.plc_client.read_outputs()}")
 
         if not off_only_zones:
             # Desactivar M18 (lloverá) y M19 (Servidor conectado)

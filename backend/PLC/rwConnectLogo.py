@@ -13,8 +13,10 @@ class PLCConnection:
     def __init__(self) -> None:
         self.client = Client()
         self.connect_PLC()
+        self.connecting = False
 
     def connect_PLC(self) -> None:
+        self.connecting = True
         try:
             logger.info("Conectándose al LOGO...")
             self.client.set_connection_params(settings.IP_LOGO,
@@ -25,25 +27,24 @@ class PLCConnection:
             self.client.connect(settings.IP_LOGO, 0, 1)
             logger.info("¡Conectado al LOGO correctamente!")
         except Exception as e:
-            logger.error("¡IMPOSIBLE CONECTAR AL LOGO!:", e)
+            logger.error(f"¡IMPOSIBLE CONECTAR AL LOGO!: {e}")
+        finally:
+            self.connecting = False
 
     def is_connected(self) -> bool:
         return self.client.get_connected()
 
     def plc_reconnection(self) -> None: # Hacer la función asíncrona
             try:
-                if not self.is_connected():
-                    self.connect_PLC()
+                if self.connecting:
+                    return
+                self.connect_PLC()
             except Exception as e:
                 logger.error(f"Error durante el proceso de reconexión: {e}")
 
 class ReadWritePLC(PLCConnection):
     def __init__(self) -> None:
         super().__init__()
-
-    def __error(self) -> None:
-        self.client.disconnect()
-        self.plc_reconnection()
 
     # Funciones de lectura/escritura básicas
     def read_inputs(self) -> None | list[bool]:
@@ -57,7 +58,7 @@ class ReadWritePLC(PLCConnection):
 
         except Exception as e:
             logger.debug(f"Error leyendo las entradas: {e}")
-            self.__error()
+            self.client.disconnect()
             return None
 
     def read_outputs(self) -> None | list[bool]:
@@ -71,7 +72,7 @@ class ReadWritePLC(PLCConnection):
 
         except Exception as e:
             logger.debug(f"Error leyendo las salidas: {e}")
-            self.__error()
+            self.client.disconnect()
             return None
 
     def write_memory(self,
@@ -90,11 +91,11 @@ class ReadWritePLC(PLCConnection):
             set_bool(data, 0, b_index, state_to_write)
             self.client.write_area(Areas.MK, 0, B_index, data)
 
-            logger.debug(f"Escrito '{state_to_write}' en M", memory_number)
+            logger.debug(f"Escrito '{state_to_write}' en M{memory_number}")
 
         except Exception as e:
             logger.debug(f"Error escribiendo memoria M{memory_number}: {e}")
-            self.__error()
+            self.client.disconnect()
             return None
 
     def read_memory(self,
@@ -117,7 +118,7 @@ class ReadWritePLC(PLCConnection):
 
         except Exception as e:
             logger.debug(f"Error leyendo memoria: {e}")
-            self.__error()
+            self.client.disconnect()
             return None
 
     def read_buffer_memories(self,
@@ -141,7 +142,7 @@ class ReadWritePLC(PLCConnection):
 
         except Exception as e:
             logger.debug(f"Error leyendo memorias: {e}")
-            self.__error()
+            self.client.disconnect()
             return None
 
 
