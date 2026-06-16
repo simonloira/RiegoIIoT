@@ -11,8 +11,8 @@
 </details>
 
 ## Breve descripción
-Este proyecto tiene como objetivo modernizar un sistema de riego existente convirtiéndolo en un sistema IIoT, la parte industrial recae en el uso del mini-PLC LOGO! Siemens ya que protege la bomba hidráulica que suministra el agua para poder regar. <br>
-Para el control automático del riego y gestionar el consumo de agua no se instalarán sensores físicos por lo que, para obtener la información meteorológica, se emplearán dos APIs climáticas: Aemet (predicción) y las estaciones meteorológicas de Meteogalicia (información actual).
+Este proyecto tiene como objetivo modernizar un sistema de riego existente convirtiéndolo en un prototipo IIoT, la parte industrial recae en el uso del mini-PLC LOGO! Siemens ya que protege la bomba hidráulica que suministra el agua para poder regar. <br>
+Para el control automático del riego y gestionar el consumo de agua, no se instalarán sensores físicos; por lo que, para obtener la información meteorológica, se emplearán dos APIs climáticas: Aemet (predicción) y las estaciones meteorológicas de Meteogalicia (información actual).
 
 ### Hardware
 El hardware encargado de la lógica del sistema se compone de los siguientes dispositivos:
@@ -30,13 +30,13 @@ El hardware encargado de la lógica del sistema se compone de los siguientes dis
   + En caso de desconexión con el servidor, se riega los días configurados durante un tiempo determinado. Ambos parámetros se pueden configurar desde la pantalla del LOGO! Siemens.
   + Protege la bomba contra varios arranques en un corto periodo. Además de contra el trabajo en vacío, gracias a un interruptor de nivel ubicado en el interior del pozo.
   + Permite visualizar diversos parámetros de funcionamiento: tiempo de riego por zonas, números de arranques de la bomba, estado del servidor, entre otros.
-  + En caso de que los contactos del contactor que activan la bomba se suelden, se bloquea el funcionamiento hasta que se cambia el contactor; protegiéndola contra un funcionamiento continuo.
+  + En caso de que los contactos del contactor que activan la bomba se suelden, se bloquea el funcionamiento hasta que se cambie el contactor; protegiéndola contra un funcionamiento continuo.
 
 ## Estructura del Proyecto
 ```
 RiegoIIoT/
-├── main.py                 # Punto de entrada de la aplicación y ciclo de vida
-├── vars.env                # Variables de entorno (no incluídas en este repositorio)
+├── main.py                 # Punto de entrada de la aplicación
+├── vars.env                # Variables de entorno de ejemplo
 ├── load_var_env.py         # Carga las variables de entorno
 ├── settings.py             # Configuración global, IPs y rutas
 ├── logo-plc/               # Programa en LOGO! Soft Comfort
@@ -78,14 +78,10 @@ RiegoIIoT/
 4. Instalar los requisitos: `pip install -r requirements.txt`
    
 ## Configuración
-1. Añadir las variables de entorno.
-   - Crear en la raíz del proyecto el archivo: `vars.env`
-   - Escribir dentro del archivo creado:
+1. Modificar las variables de entorno.
+   - Escribir dentro del archivo:
       ```
-      METEOGALICIA_API_KEY = Clave de la API de meteogalicia
-      USER_LOGIN = Nombre de usuario
-      PASSWORD_LOGIN = Contraseña
-      SECRET_JWT_KEY = Clave token JWT
+      METEOGALICIA_API_KEY = tu_api_key
       ```
 2. Revisar los ajustes del servidor en `settings.py`. Por ejemplo:
    - Revisar la IP del LOGO!, el TSAP local y remoto o los bytes a leer del PLC.
@@ -96,7 +92,7 @@ RiegoIIoT/
 
 > En caso de tener el PLC:
 
-5. Si no se modificó la IP preconfigurada en este proyecto para el PLC, se debe de conectar al servidor por ethernet y configurar la IP ethernet del servidor con la siguiente IP:
+5. Si no se modificó la configuración de red preestablecida para el PLC, se debe de conectar al servidor por ethernet y configurar la interfaz ethernet del servidor:
 
    ```bash
       IP: 192.168.2.2
