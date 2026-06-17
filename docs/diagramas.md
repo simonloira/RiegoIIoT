@@ -39,7 +39,8 @@ graph LR
     classDef abortar fill:#FFEBEE,stroke:#F44336,stroke-width:1.5px,color:#B71C1C,font-family:'Inter',rx:8px,ry:8px;
 
     subgraph RPI [Raspberry Pi - Lógica en Python]
-      A[Lluvia acumulada de ayer y de hoy hasta la hora actual] --> B{¿Lluvia acumulada > 5 mm?}
+      0[Esperar entre 20 y 40 minutos] --> A[Lluvia acumulada de ayer y de hoy hasta la hora actual]
+      A --> B{¿Lluvia acumulada > 5 mm?}
       B --Si--> C[No pedir regar]
       B --No--> D[Comprobar cuánto lloverá el resto del día]
       D --> E{¿Lluvia acumulada y lluvia prevista > 5 mm?}
@@ -47,6 +48,8 @@ graph LR
       E --No--> F{¿Va a llover ahora?}
       F --Si--> C[No pedir regar]
       F --No--> G[Enviar estado al PLC]
+      G --> 0
+      C --> 0
     end
     class RPI rpiGraph;
 
